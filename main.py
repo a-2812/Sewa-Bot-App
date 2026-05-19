@@ -112,6 +112,25 @@ def _save_bookings(bookings: dict[str, Any]) -> None:
     )
 
 
+def _save_notification(record: dict[str, Any]) -> None:
+    """Save a simulated WhatsApp notification to data/notifications.json."""
+    NOTIFICATIONS_FILE = _BASE / "data" / "notifications.json"
+    NOTIFICATIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    
+    notifications = []
+    if NOTIFICATIONS_FILE.exists():
+        try:
+            notifications = json.loads(NOTIFICATIONS_FILE.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            pass
+            
+    notifications.append(record)
+    NOTIFICATIONS_FILE.write_text(
+        json.dumps(notifications, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Haversine utility
 # ---------------------------------------------------------------------------
@@ -177,6 +196,18 @@ class BookingResponse(BaseModel):
     message:    str
     created_at: str
     receipt:    str
+
+
+class NotifyRequest(BaseModel):
+    """POST /notify request body."""
+    recipient_phone: str = Field(..., description="Recipient WhatsApp number")
+    message: str = Field(..., description="Message content to send")
+
+
+class NotifyResponse(BaseModel):
+    status: str
+    message_id: str
+    timestamp: str
 
 
 # ---------------------------------------------------------------------------
@@ -466,6 +497,46 @@ def list_bookings(
     if status:
         bookings = [b for b in bookings if b["status"].lower() == status.lower()]
     return {"total": len(bookings), "bookings": bookings}
+
+
+# ---------------------------------------------------------------------------
+# Notifications Route
+# ---------------------------------------------------------------------------
+
+@app.post("/notify", response_model=NotifyResponse, summary="Simulate WhatsApp Notification", tags=["Notifications"])
+def send_notification(body: NotifyRequest) -> NotifyResponse:
+    """Simulate sending a WhatsApp notification to a provider or customer.
+    
+    Used by the Booking Agent and Follow-up Agent.
+    """
+    timestamp = datetime.now(timezone.utc).isoformat()
+    message_id = f"MSG-{uuid.uuid4().hex[:8].upper()}"
+    
+    # 1. Log a fake WhatsApp message format to console
+    print(f"\n{'='*40}")
+    print(f"🟢 WHATSAPP MESSAGE SIMULATOR")
+    print(f"To: {body.recipient_phone}")
+    print(f"Time: {timestamp}")
+    print(f"ID: {message_id}")
+    print(f"----------------------------------------")
+    print(f"{body.message}")
+    print(f"{'='*40}\n")
+    
+    # 2. Save to data/notifications.json
+    record = {
+        "message_id": message_id,
+        "recipient_phone": body.recipient_phone,
+        "message": body.message,
+        "timestamp": timestamp,
+        "status": "delivered_simulated"
+    }
+    _save_notification(record)
+    
+    return NotifyResponse(
+        status="sent",
+        message_id=message_id,
+        timestamp=timestamp,
+    )
 
 
 # ---------------------------------------------------------------------------
