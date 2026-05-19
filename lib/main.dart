@@ -15,7 +15,6 @@ import 'screens/shared/splash_screen.dart';
 import 'screens/shared/role_selection_screen.dart';
 import 'screens/shared/trace_screen.dart';
 import 'screens/shared/dev_index_screen.dart';
-import 'screens/shared/dummy_screen.dart';
 import 'screens/shared/agent_flow_screen.dart';
 
 // Auth screens
@@ -37,7 +36,6 @@ import 'screens/user/dispute_screen.dart';
 // Provider screens
 import 'screens/provider/provider_home_screen.dart';
 import 'screens/provider/incoming_jobs_screen.dart';
-import 'screens/provider/job_detail_screen.dart';
 import 'screens/provider/active_job_screen.dart';
 import 'screens/provider/earnings_screen.dart';
 import 'screens/provider/provider_profile_screen.dart';
@@ -91,7 +89,6 @@ class KhidmatAIApp extends StatelessWidget {
             routes: {
               // ─── Shared Routes ────────────────────────
               '/dev-index': (context) => const DevIndexScreen(),
-              '/dummy': (context) => const DummyScreen(),
               '/agent-flow': (context) => AgentFlowScreen(),
               '/splash': (context) => const SplashScreen(),
               '/role': (context) => const RoleSelectionScreen(),
@@ -116,7 +113,7 @@ class KhidmatAIApp extends StatelessWidget {
               // ─── Provider Routes ──────────────────────
               '/provider/home': (context) => const ProviderHomeScreen(),
               '/provider/jobs': (context) => const IncomingJobsScreen(),
-              '/provider/job': (context) => const JobDetailScreen(),
+              '/provider/job': (context) => const ActiveJobScreen(),
               '/provider/active': (context) => const ActiveJobScreen(),
               '/provider/earnings': (context) => const EarningsScreen(),
               '/provider/profile': (context) => const ProviderProfileScreen(),

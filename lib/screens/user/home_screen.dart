@@ -3,17 +3,18 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/app_state.dart';
 import 'chat_screen.dart';
-import '../shared/trace_screen.dart';
+import 'bookings_screen.dart';
+import 'profile_screen.dart';
 
 /// User Home Screen with SliverAppBar, service grid, and recent bookings
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> {
   int _currentNavIndex = 0;
 
   // Service data
@@ -26,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
     {'icon': Icons.format_paint, 'name': 'Painting', 'price': 'Quote pe'},
   ];
 
-  void _onNavTap(int index) {
+  void onNavTap(int index) {
     setState(() => _currentNavIndex = index);
   }
 
@@ -39,8 +40,8 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _buildHomeContent(),
           const ChatScreen(),
-          const TraceViewerScreen(),
-          const Center(child: Text('Profile Coming Soon', style: TextStyle(color: AppTheme.textPrimary))),
+          const BookingsScreen(),
+          const UserProfileScreen(),
         ],
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -100,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     _buildNavItem(0, Icons.home_rounded, 'Home'),
                     _buildNavItem(1, Icons.chat_bubble_rounded, 'Chat'),
-                    _buildNavItem(2, Icons.analytics_rounded, 'Trace'),
+                    _buildNavItem(2, Icons.receipt_long_rounded, 'Bookings'),
                     _buildNavItem(3, Icons.person_rounded, 'Profile'),
                   ],
                 ),
@@ -119,7 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Expanded(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => _onNavTap(index),
+        onTap: () => onNavTap(index),
         child: TweenAnimationBuilder<Color?>(
           duration: const Duration(milliseconds: 250),
           tween: ColorTween(

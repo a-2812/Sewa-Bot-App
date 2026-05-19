@@ -95,9 +95,18 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary),
-          onPressed: () => Navigator.pop(context),
+        leading: Center(
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.black.withValues(alpha: 0.4),
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(36, 36),
+              fixedSize: const Size(36, 36),
+              shape: const CircleBorder(),
+            ),
+            onPressed: () => Navigator.pop(context),
+          ),
         ),
       ),
       body: Center(

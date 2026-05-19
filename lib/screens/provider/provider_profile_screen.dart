@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../config/mock_provider_data.dart';
+import '../../providers/role_state.dart';
 
 class ProviderProfileScreen extends StatefulWidget {
   const ProviderProfileScreen({super.key});
@@ -16,6 +18,125 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
   late Set<String> _selectedCategories;
   String _fromTime = '09:00 AM';
   String _toTime = '06:00 PM';
+
+  bool _notificationsEnabled = true;
+  bool _darkModeEnabled = true;
+  String _selectedLanguage = 'English';
+
+  void _showChangePasswordDialog() {
+    final oldPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    final dialogFormKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: AppTheme.providerInputFill,
+          title: const Text('Change Password', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+          content: Form(
+            key: dialogFormKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: oldPasswordController,
+                    obscureText: true,
+                    style: const TextStyle(color: AppTheme.textPrimary),
+                    decoration: const InputDecoration(
+                      labelText: 'Old Password',
+                      labelStyle: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                    validator: (v) => v!.isEmpty ? 'Enter old password' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: newPasswordController,
+                    obscureText: true,
+                    style: const TextStyle(color: AppTheme.textPrimary),
+                    decoration: const InputDecoration(
+                      labelText: 'New Password',
+                      labelStyle: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                    validator: (v) => v!.length < 6 ? 'Must be at least 6 characters' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: confirmPasswordController,
+                    obscureText: true,
+                    style: const TextStyle(color: AppTheme.textPrimary),
+                    decoration: const InputDecoration(
+                      labelText: 'Confirm Password',
+                      labelStyle: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                    validator: (v) => v != newPasswordController.text ? 'Passwords do not match' : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (dialogFormKey.currentState!.validate()) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Password updated successfully!'), backgroundColor: AppTheme.success),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.providerPrimary),
+              child: const Text('Update', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _logout() async {
+    final roleState = context.read<RoleState>();
+    await roleState.clearRole();
+    if (mounted) {
+      Navigator.pushNamedAndRemoveUntil(context, '/role', (_) => false);
+    }
+  }
+
+  void _confirmDeleteAccount() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: AppTheme.providerInputFill,
+          title: const Text('Delete Account', style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.bold)),
+          content: const Text(
+            'Are you sure you want to permanently delete your account? This action cannot be undone.',
+            style: TextStyle(color: AppTheme.textPrimary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _logout();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+              child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -37,6 +158,21 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
             expandedHeight: 200,
             pinned: true,
             backgroundColor: AppTheme.providerPrimary,
+            leading: Navigator.canPop(context)
+                ? Center(
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black.withValues(alpha: 0.4),
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(36, 36),
+                        fixedSize: const Size(36, 36),
+                        shape: const CircleBorder(),
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  )
+                : null,
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 color: AppTheme.providerPrimary,
@@ -192,6 +328,83 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                   const SizedBox(height: 10),
                   const Text('• Add a profile photo — 35% more trust\n• Be available on Sundays — high demand\n• Add F-10 area — high nearby demand', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12, height: 1.6)),
                 ]),
+              ),
+              const SizedBox(height: 24),
+
+              // Settings Section
+              const Text('Settings & Preferences', style: TextStyle(color: AppTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.providerInputFill,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.providerBorder, width: 0.5),
+                ),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      title: const Text('Push Notifications', style: TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
+                      value: _notificationsEnabled,
+                      onChanged: (val) => setState(() => _notificationsEnabled = val),
+                    ),
+                    const Divider(height: 1),
+                    SwitchListTile(
+                      title: const Text('Dark Theme Mode', style: TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
+                      value: _darkModeEnabled,
+                      onChanged: (val) => setState(() => _darkModeEnabled = val),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      title: const Text('App Language', style: TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
+                      trailing: DropdownButton<String>(
+                        value: _selectedLanguage,
+                        dropdownColor: AppTheme.providerInputFill,
+                        underline: const SizedBox(),
+                        style: const TextStyle(color: AppTheme.providerPrimary, fontWeight: FontWeight.bold),
+                        items: ['English', 'Roman Urdu'].map((lang) {
+                          return DropdownMenuItem<String>(
+                            value: lang,
+                            child: Text(lang),
+                          );
+                        }).toList(),
+                        onChanged: (val) => setState(() => _selectedLanguage = val ?? 'English'),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      title: const Text('Change Account Password', style: TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppTheme.textMuted),
+                      onTap: _showChangePasswordDialog,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Account Actions Section
+              const Text('Account Actions', style: TextStyle(color: AppTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.providerInputFill,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.providerBorder, width: 0.5),
+                ),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: AppTheme.warning),
+                      title: const Text('Log Out', style: TextStyle(color: AppTheme.warning, fontSize: 13, fontWeight: FontWeight.bold)),
+                      onTap: _logout,
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.delete_forever, color: AppTheme.danger),
+                      title: const Text('Delete Account', style: TextStyle(color: AppTheme.danger, fontSize: 13, fontWeight: FontWeight.bold)),
+                      onTap: _confirmDeleteAccount,
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 100),
             ]),

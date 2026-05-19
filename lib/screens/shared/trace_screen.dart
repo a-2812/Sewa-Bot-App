@@ -89,6 +89,21 @@ class _TraceViewerScreenState extends State<TraceViewerScreen> {
       backgroundColor: isProvider ? AppTheme.providerBackground : AppTheme.userBackground,
       appBar: AppBar(
         backgroundColor: accent,
+        leading: Navigator.canPop(context)
+            ? Center(
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black.withValues(alpha: 0.4),
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(36, 36),
+                    fixedSize: const Size(36, 36),
+                    shape: const CircleBorder(),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              )
+            : null,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
           Text('TR-$traceId', style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.7))),

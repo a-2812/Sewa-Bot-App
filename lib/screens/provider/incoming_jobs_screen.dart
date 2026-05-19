@@ -34,7 +34,19 @@ class _IncomingJobsScreenState extends State<IncomingJobsScreen> with SingleTick
           backgroundColor: AppTheme.providerBackground,
           appBar: AppBar(
             backgroundColor: AppTheme.providerPrimary,
-            leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
+            leading: Center(
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black.withValues(alpha: 0.4),
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(36, 36),
+                  fixedSize: const Size(36, 36),
+                  shape: const CircleBorder(),
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
             title: const Text('Incoming Jobs'),
             actions: [
               Stack(children: [

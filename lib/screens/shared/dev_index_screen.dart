@@ -26,7 +26,6 @@ class DevIndexScreen extends StatelessWidget {
     {'name': 'Provider Active Job', 'route': '/provider/active'},
     {'name': 'Provider Earnings', 'route': '/provider/earnings'},
     {'name': 'Provider Profile', 'route': '/provider/profile'},
-    {'name': 'Dummy Screen', 'route': '/dummy'},
     {'name': 'Agent Flow Visualization', 'route': '/agent-flow'},
   ];
 
@@ -34,6 +33,21 @@ class DevIndexScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context)
+            ? Center(
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black.withValues(alpha: 0.4),
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(36, 36),
+                    fixedSize: const Size(36, 36),
+                    shape: const CircleBorder(),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              )
+            : null,
         title: const Text('All Screens (Dev Index)'),
       ),
       body: ListView.separated(

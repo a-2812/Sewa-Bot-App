@@ -91,6 +91,21 @@ class _ActiveJobScreenState extends State<ActiveJobScreen> {
       backgroundColor: AppTheme.providerBackground,
       appBar: AppBar(
         backgroundColor: AppTheme.providerPrimary,
+        leading: Navigator.canPop(context)
+            ? Center(
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black.withValues(alpha: 0.4),
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(36, 36),
+                    fixedSize: const Size(36, 36),
+                    shape: const CircleBorder(),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              )
+            : null,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Active Job', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
           Text('${_job['service_type'] ?? 'Service'} at ${_job['location'] ?? 'Location'}', style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.7))),
