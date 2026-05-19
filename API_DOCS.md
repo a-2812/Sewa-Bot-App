@@ -1,18 +1,49 @@
 # SewaBot API Documentation
 
-This document outlines all the endpoints available in the SewaBot backend for the mobile app developer.
+Welcome to the SewaBot backend API documentation. This reference guide outlines all available endpoints to help mobile and web developers seamlessly integrate with the SewaBot service orchestrator.
+
+## Base URL
+```text
+http://localhost:8000
+```
+*(In production, replace with your live domain, e.g., `https://api.sewabot.pk`)*
+
+## Authentication
+Currently, the SewaBot API is **unauthenticated** and open for development. No API keys or Bearer tokens are required in the headers for any of the endpoints. Future iterations will introduce OAuth2/JWT token-based authentication.
+
+## Rate Limiting & Timeouts
+To ensure system stability, the following constraints are actively enforced:
+- **Rate Limit**: All endpoints are strictly limited to **10 requests per minute per IP address**. Exceeding this will result in a `429 Too Many Requests` response.
+- **Timeout**: Requests that take longer than **5 seconds** to process will automatically abort and return a `504 Gateway Timeout`.
 
 ---
 
-## 1. System Health
+## Global Error Code Table
 
-### `GET /` (Health Check)
+| Status Code | Error Title | Description |
+|---|---|---|
+| `400` | Bad Request | The request was malformed or missing required logic parameters. |
+| `404` | Not Found | The requested resource (provider, booking, endpoint) does not exist. |
+| `409` | Conflict | The resource state conflicts with the request (e.g., booking an unavailable provider). |
+| `422` | Unprocessable Entity | Validation error on the request body or path parameters (e.g., incorrect ID format). |
+| `429` | Too Many Requests | Rate limit exceeded (10 requests/minute per IP). |
+| `500` | Internal Server Error | An unexpected server crash occurred. |
+| `503` | Service Unavailable | Database (Firestore) connection failure or external service down. |
+| `504` | Gateway Timeout | The request processing took longer than 5 seconds. |
+
+---
+
+## 1. System
+
+### `GET /`
 Check the system health and API version.
 
-**Request Body:**
-None
+**Example cURL:**
+```bash
+curl -X GET "http://localhost:8000/" -H "accept: application/json"
+```
 
-**Response Example:**
+**Response (200 OK):**
 ```json
 {
   "status": "ok",
@@ -23,9 +54,21 @@ None
 
 ---
 
+### `GET /admin`
+Returns the HTML dashboard for administrative overview.
+
+**Example cURL:**
+```bash
+curl -X GET "http://localhost:8000/admin"
+```
+
+*(Returns a compiled HTML response)*
+
+---
+
 ## 2. Providers
 
-### `GET /providers` (List All Providers)
+### `GET /providers`
 Return the full provider catalogue with optional filters.
 
 **Query Parameters:**
@@ -33,10 +76,12 @@ Return the full provider catalogue with optional filters.
 - `city` (string, optional): Filter by city.
 - `verified_only` (boolean, optional): Return only verified providers.
 
-**Request Body:**
-None
+**Example cURL:**
+```bash
+curl -X GET "http://localhost:8000/providers?service=Plumber&verified_only=true" -H "accept: application/json"
+```
 
-**Response Example:**
+**Response (200 OK):**
 ```json
 {
   "total": 1,
@@ -58,21 +103,26 @@ None
 }
 ```
 
-### `POST /search` (Search Providers by Service + Location)
-Find providers within a specific radius of the user offering the requested service.
+---
 
-**Request Body:**
-```json
-{
-  "service_type": "Plumber",
-  "user_lat": 33.6844,
-  "user_lon": 73.0479,
-  "location": "Islamabad",
-  "radius_km": 50.0
-}
+### `POST /search`
+Find providers within a specific radius of the user offering the requested service. Sorted by nearest first.
+
+**Example cURL:**
+```bash
+curl -X POST "http://localhost:8000/search" \
+     -H "accept: application/json" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "service_type": "Plumber",
+           "user_lat": 33.6844,
+           "user_lon": 73.0479,
+           "location": "Islamabad",
+           "radius_km": 50.0
+         }'
 ```
 
-**Response Example:**
+**Response (200 OK):**
 ```json
 {
   "total": 1,
@@ -94,35 +144,33 @@ Find providers within a specific radius of the user offering the requested servi
 }
 ```
 
-**Common Error Codes:**
-- `404 Not Found`: No providers found for the given service.
-- `422 Unprocessable Entity`: Validation error in request body.
+---
 
-### `POST /rank` (Rank Providers by Composite Score)
-Rank a list of providers using SewaBot's weighted scoring model.
+### `POST /rank`
+Rank a list of providers using SewaBot's weighted scoring model (Distance 40%, Rating 35%, Availability 15%, Verified 10%).
 
-**Request Body:**
-```json
-{
-  "providers_list": [
-    {
-      "id": "p001",
-      "name": "Ahmed Raza",
-      "rating": 4.8,
-      "available": true,
-      "verified": true,
-      "location": {
-        "lat": 33.6844, 
-        "lng": 73.0479
-      }
-    }
-  ],
-  "user_lat": 33.6844,
-  "user_lon": 73.0479
-}
+**Example cURL:**
+```bash
+curl -X POST "http://localhost:8000/rank" \
+     -H "accept: application/json" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "providers_list": [
+             {
+               "id": "p001",
+               "name": "Ahmed Raza",
+               "rating": 4.8,
+               "available": true,
+               "verified": true,
+               "location": { "lat": 33.6844, "lng": 73.0479 }
+             }
+           ],
+           "user_lat": 33.6844,
+           "user_lon": 73.0479
+         }'
 ```
 
-**Response Example:**
+**Response (200 OK):**
 ```json
 {
   "total": 1,
@@ -149,30 +197,30 @@ Rank a list of providers using SewaBot's weighted scoring model.
 }
 ```
 
-**Common Error Codes:**
-- `422 Unprocessable Entity`: `providers_list` cannot be empty.
-
 ---
 
 ## 3. Bookings
 
-### `POST /book` (Create a Booking)
+### `POST /book`
 Create a new service booking.
 
-**Request Body:**
-```json
-{
-  "provider_id": "p008",
-  "user_name": "Ali Khan",
-  "user_phone": "+92-300-1234567",
-  "service_type": "Plumber",
-  "time_slot": "2026-05-20T10:00:00Z",
-  "location": "House 12, Street 5, F-8, Islamabad",
-  "notes": "Please come early"
-}
+**Example cURL:**
+```bash
+curl -X POST "http://localhost:8000/book" \
+     -H "accept: application/json" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "provider_id": "p008",
+           "user_name": "Ali Khan",
+           "user_phone": "+92-300-1234567",
+           "service_type": "Plumber",
+           "time_slot": "2026-05-20T10:00:00Z",
+           "location": "House 12, Street 5, F-8, Islamabad",
+           "notes": "Please come early"
+         }'
 ```
 
-**Response Example:**
+**Response (201 Created):**
 ```json
 {
   "booking_id": "BK-1A2B3C4D5E",
@@ -183,21 +231,17 @@ Create a new service booking.
 }
 ```
 
-**Common Error Codes:**
-- `404 Not Found`: Provider does not exist.
-- `409 Conflict`: Provider is currently unavailable.
-- `422 Unprocessable Entity`: Validation error in request body.
+---
 
-### `GET /bookings/{booking_id}` (Get Booking Details)
-Retrieve full details for a single booking by its ID.
+### `GET /bookings/{booking_id}`
+Retrieve full details for a single booking by its ID. Must follow the format `BK-XXXXXXXXXX` (where X is an uppercase hex character).
 
-**Path Parameters:**
-- `booking_id` (string): The ID of the booking to retrieve.
+**Example cURL:**
+```bash
+curl -X GET "http://localhost:8000/bookings/BK-1A2B3C4D5E" -H "accept: application/json"
+```
 
-**Request Body:**
-None
-
-**Response Example:**
+**Response (200 OK):**
 ```json
 {
   "booking_id": "BK-1A2B3C4D5E",
@@ -219,19 +263,20 @@ None
 }
 ```
 
-**Common Error Codes:**
-- `404 Not Found`: Booking not found.
+---
 
-### `GET /bookings` (List All Bookings)
+### `GET /bookings`
 Return all persisted bookings, optionally filtered by status.
 
 **Query Parameters:**
 - `status` (string, optional): Filter by status (e.g., 'confirmed', 'cancelled').
 
-**Request Body:**
-None
+**Example cURL:**
+```bash
+curl -X GET "http://localhost:8000/bookings?status=confirmed" -H "accept: application/json"
+```
 
-**Response Example:**
+**Response (200 OK):**
 ```json
 {
   "total": 1,
@@ -250,18 +295,21 @@ None
 
 ## 4. Notifications
 
-### `POST /notify` (Simulate WhatsApp Notification)
+### `POST /notify`
 Simulate sending a WhatsApp notification to a provider or customer.
 
-**Request Body:**
-```json
-{
-  "recipient_phone": "+92-300-1234567",
-  "message": "Your booking is confirmed!"
-}
+**Example cURL:**
+```bash
+curl -X POST "http://localhost:8000/notify" \
+     -H "accept: application/json" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "recipient_phone": "+92-300-1234567",
+           "message": "Your booking is confirmed!"
+         }'
 ```
 
-**Response Example:**
+**Response (200 OK):**
 ```json
 {
   "status": "sent",
@@ -270,23 +318,22 @@ Simulate sending a WhatsApp notification to a provider or customer.
 }
 ```
 
-**Common Error Codes:**
-- `422 Unprocessable Entity`: Validation error in request body.
-
 ---
 
 ## 5. Agents
 
-### `GET /agent-logs` (Get Agent Reasoning Traces)
+### `GET /agent-logs`
 Retrieve the most recent agent reasoning traces.
 
 **Query Parameters:**
 - `limit` (integer, optional): Maximum number of recent logs to return (default: 50).
 
-**Request Body:**
-None
+**Example cURL:**
+```bash
+curl -X GET "http://localhost:8000/agent-logs?limit=5" -H "accept: application/json"
+```
 
-**Response Example:**
+**Response (200 OK):**
 ```json
 {
   "total": 1,

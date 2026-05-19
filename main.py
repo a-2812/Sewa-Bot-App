@@ -16,13 +16,16 @@ import asyncio
 import json
 import math
 import uuid
+import time
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request, Path as FastApiPath
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from firebase_config import get_firestore_client
@@ -49,6 +52,55 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------------------------------------------------------------------
+# Middlewares & Exception Handlers
+# ---------------------------------------------------------------------------
+
+RATE_LIMIT_DURATION = 60
+MAX_REQUESTS_PER_MINUTE = 10
+_ip_requests = defaultdict(list)
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    now = time.time()
+    
+    # Clean up old requests
+    _ip_requests[client_ip] = [t for t in _ip_requests[client_ip] if now - t < RATE_LIMIT_DURATION]
+    
+    if len(_ip_requests[client_ip]) >= MAX_REQUESTS_PER_MINUTE:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Too Many Requests. Please try again later."}
+        )
+        
+    _ip_requests[client_ip].append(now)
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def timeout_middleware(request: Request, call_next):
+    try:
+        return await asyncio.wait_for(call_next(request), timeout=5.0)
+    except asyncio.TimeoutError:
+        return JSONResponse(
+            status_code=504,
+            content={"detail": "Gateway Timeout. The request took too long to process."}
+        )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    # Pass through standard HTTPExceptions
+    if isinstance(exc, HTTPException):
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        
+    print(f"Unhandled exception: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error. Please contact support."}
+    )
 
 # ---------------------------------------------------------------------------
 # Paths — both files live next to main.py
@@ -105,7 +157,7 @@ def _load_bookings() -> dict[str, Any]:
         return {doc.id: doc.to_dict() for doc in docs}
     except Exception as e:
         print(f"Error loading bookings from Firestore: {e}")
-        return {}
+        raise HTTPException(status_code=503, detail="Database connection failed")
 
 
 def _save_booking(booking_id: str, record: dict[str, Any]) -> None:
@@ -115,6 +167,7 @@ def _save_booking(booking_id: str, record: dict[str, Any]) -> None:
         db.collection('bookings').document(booking_id).set(record)
     except Exception as e:
         print(f"Error saving booking to Firestore: {e}")
+        raise HTTPException(status_code=503, detail="Database connection failed")
 
 
 def _save_notification(record: dict[str, Any]) -> None:
@@ -209,7 +262,7 @@ class RankRequest(BaseModel):
 
 class BookingRequest(BaseModel):
     """POST /book request body."""
-    provider_id:  str = Field(..., description="Unique provider ID (e.g. 'p008').")
+    provider_id:  str = Field(..., pattern=r"^[A-Za-z0-9_-]+$", description="Unique provider ID (e.g. 'p008').")
     user_name:    str = Field(..., min_length=2, description="Customer full name.")
     user_phone:   str = Field(..., description="Customer phone number (+92-...).")
     service_type: str = Field(..., description="Service being booked.")
@@ -308,6 +361,15 @@ def health_check() -> HealthResponse:
         timestamp=datetime.now(timezone.utc).isoformat(),
         version=app.version,
     )
+
+
+@app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+def admin_dashboard():
+    """Serve the simple HTML admin dashboard."""
+    admin_file = _BASE / "admin.html"
+    if admin_file.exists():
+        return HTMLResponse(content=admin_file.read_text(encoding="utf-8"))
+    return HTMLResponse(content="<h1>Admin File Not Found</h1>", status_code=404)
 
 
 @app.get("/providers", summary="List All Providers", tags=["Providers"])
@@ -508,7 +570,9 @@ def create_booking(body: BookingRequest) -> BookingResponse:
 
 
 @app.get("/bookings/{booking_id}", summary="Get Booking Details", tags=["Bookings"])
-def get_booking(booking_id: str) -> dict[str, Any]:
+def get_booking(
+    booking_id: str = FastApiPath(..., pattern=r"^BK-[A-F0-9]{10}$", description="Booking ID format: BK-XXXXXXXXXX")
+) -> dict[str, Any]:
     """Retrieve full details for a single booking by its ID."""
     bookings = _load_bookings()
     booking  = bookings.get(booking_id)

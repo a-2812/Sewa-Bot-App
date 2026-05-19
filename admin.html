@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SewaBot Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        /* Custom scrollbar for tables */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+    <!-- Navbar -->
+    <nav class="bg-indigo-600 text-white shadow-md relative z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 bg-indigo-500 rounded-lg">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <span class="font-bold text-xl tracking-tight">SewaBot Admin</span>
+                </div>
+                <div class="text-indigo-200 text-sm font-medium" id="current-time"></div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        
+        <!-- Stats Row -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 flex items-center space-x-5 transform transition hover:-translate-y-1 hover:shadow-md">
+                <div class="p-4 bg-indigo-50 text-indigo-600 rounded-xl">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Bookings</p>
+                    <p class="text-3xl font-bold text-slate-800" id="total-bookings">0</p>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 flex items-center space-x-5 transform transition hover:-translate-y-1 hover:shadow-md">
+                <div class="p-4 bg-emerald-50 text-emerald-600 rounded-xl">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Service Providers</p>
+                    <p class="text-3xl font-bold text-slate-800" id="total-providers">0</p>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 flex items-center space-x-5 transform transition hover:-translate-y-1 hover:shadow-md">
+                <div class="p-4 bg-amber-50 text-amber-600 rounded-xl">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Agent Activities</p>
+                    <p class="text-3xl font-bold text-slate-800" id="total-logs">0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bookings Table -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="text-lg font-semibold text-slate-800 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    Recent Bookings
+                </h3>
+                <button onclick="fetchBookings()" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Refresh
+                </button>
+            </div>
+            <div class="overflow-x-auto max-h-[400px]">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Customer</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Provider</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Service</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Time Slot</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-slate-100" id="bookings-body">
+                        <!-- Populated by JS -->
+                        <tr><td colspan="6" class="px-6 py-8 text-center text-slate-400">Loading bookings...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Providers Table -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+                <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                    <h3 class="text-lg font-semibold text-slate-800 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                        Service Providers
+                    </h3>
+                </div>
+                <div class="overflow-x-auto h-[400px] overflow-y-auto">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Provider</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Service</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100" id="providers-body">
+                            <!-- Populated by JS -->
+                            <tr><td colspan="3" class="px-6 py-8 text-center text-slate-400">Loading providers...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Agent Logs Table -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+                <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                    <h3 class="text-lg font-semibold text-slate-800 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        Agent Activity
+                    </h3>
+                </div>
+                <div class="overflow-x-auto h-[400px] overflow-y-auto">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Agent / Action</th>
+                                <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100" id="logs-body">
+                            <!-- Populated by JS -->
+                            <tr><td colspan="2" class="px-6 py-8 text-center text-slate-400">Loading logs...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Update clock
+        setInterval(() => {
+            document.getElementById('current-time').textContent = new Date().toLocaleString();
+        }, 1000);
+
+        // Fetch and render bookings
+        async function fetchBookings() {
+            try {
+                const response = await fetch('/bookings');
+                const data = await response.json();
+                document.getElementById('total-bookings').textContent = data.total || 0;
+                
+                const tbody = document.getElementById('bookings-body');
+                if(data.bookings && data.bookings.length > 0) {
+                    tbody.innerHTML = data.bookings.map(b => `
+                        <tr class="hover:bg-indigo-50/50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-indigo-600">${b.booking_id}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-slate-900">${b.customer?.name || '-'}</div>
+                                <div class="text-xs text-slate-500">${b.customer?.phone || ''}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-slate-900">${b.provider?.name || '-'}</div>
+                                <div class="text-xs text-slate-500">${b.provider?.phone || ''}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-1 rounded-md border border-blue-200 shadow-sm">${b.service_type || '-'}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-md ${
+                                    b.status.toLowerCase() === 'confirmed' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-800 border border-slate-200'
+                                }">
+                                    ${b.status}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">${b.time_slot}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-sm text-slate-500">No bookings found</td></tr>';
+                }
+            } catch (err) {
+                console.error("Failed to load bookings:", err);
+                document.getElementById('bookings-body').innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-sm text-red-500">Error loading data</td></tr>';
+            }
+        }
+
+        // Fetch and render providers
+        async function fetchProviders() {
+            try {
+                const response = await fetch('/providers');
+                const data = await response.json();
+                document.getElementById('total-providers').textContent = data.total || 0;
+                
+                const tbody = document.getElementById('providers-body');
+                if(data.providers && data.providers.length > 0) {
+                    tbody.innerHTML = data.providers.map(p => `
+                        <tr class="hover:bg-emerald-50/50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-slate-900">${p.name}</div>
+                                <div class="text-xs text-slate-500 mt-1 flex items-center">
+                                    <span class="text-amber-500 mr-1">⭐</span> ${p.rating || 'N/A'}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                                <span class="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs font-medium">${p.service}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                ${p.verified 
+                                    ? '<span class="text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100 flex items-center inline-flex text-xs font-semibold"><svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>Verified</span>' 
+                                    : '<span class="text-slate-400 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md text-xs font-medium inline-flex">Unverified</span>'}
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error("Failed to load providers:", err);
+            }
+        }
+
+        // Fetch and render logs
+        async function fetchLogs() {
+            try {
+                const response = await fetch('/agent-logs');
+                const data = await response.json();
+                document.getElementById('total-logs').textContent = data.total || 0;
+                
+                const tbody = document.getElementById('logs-body');
+                if(data.logs && data.logs.length > 0) {
+                    tbody.innerHTML = data.logs.map(log => `
+                        <tr class="hover:bg-amber-50/50 transition-colors group">
+                            <td class="px-6 py-4">
+                                <div class="flex items-center mb-1">
+                                    <span class="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 mr-2">${log.agent_name}</span>
+                                    <span class="text-sm font-medium text-slate-800">${log.action}</span>
+                                </div>
+                                <div class="text-xs text-slate-500 line-clamp-2 group-hover:line-clamp-none transition-all duration-300 ml-1 border-l-2 border-slate-200 pl-2 mt-1 italic">${log.reasoning || ''}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right">
+                                <div class="text-xs text-slate-400 font-mono">${new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</div>
+                                <div class="text-[10px] text-slate-300 uppercase">${new Date(log.timestamp).toLocaleDateString()}</div>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error("Failed to load logs:", err);
+            }
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchBookings();
+            fetchProviders();
+            fetchLogs();
+            
+            // Auto refresh every 30 seconds
+            setInterval(() => {
+                fetchBookings();
+                fetchProviders();
+                fetchLogs();
+            }, 30000);
+        });
+    </script>
+</body>
+</html>
