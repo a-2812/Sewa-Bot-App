@@ -129,6 +129,48 @@ _cached_providers: Optional[list[dict[str, Any]]] = None
 _cached_providers_timestamp: float = 0.0
 PROVIDER_CACHE_TTL: float = 300.0  # 5 minutes
 
+CANONICAL_SERVICES = {
+    "AC Technician": ["ac", "air conditioner", "ac repair", "ac technician", "ac service", "ac wala", "ac thik", "ac repair wala", "cooling", "ref"],
+    "Plumber": ["plumber", "plumbing", "pipe", "leak", "tap", "leakage", "urgent plumber", "plumber chahiye", " नल "],
+    "Electrician": ["electrician", "bijli", "electricity", "fan repair", "short circuit", "board repair", "ups", "wiring"],
+    "Math Tutor": ["math", "maths", "tutor", "teacher", "math tutor", "maths tutor", "tuition", "study", "academy", "math teacher"],
+    "Beautician": ["beautician", "makeup", "beauty", "parlor", "salon", "facial", "threading", "hairdresser"],
+    "Carpenter": ["carpenter", "wood", "furniture", "door repair", "cabinet", "sofa repair", "woodwork"]
+}
+
+def normalize_service_type(query: str) -> str:
+    if not query:
+        return ""
+    q = query.lower().strip()
+    
+    # 1. Check exact/close match first
+    for canonical, keywords in CANONICAL_SERVICES.items():
+        if q == canonical.lower():
+            return canonical
+        for kw in keywords:
+            if q == kw.lower():
+                return canonical
+                
+    # 2. Check substring match
+    matches = []
+    for canonical, keywords in CANONICAL_SERVICES.items():
+        for kw in keywords:
+            if kw.lower() in q:
+                matches.append((len(kw), canonical))
+    if matches:
+        matches.sort(reverse=True, key=lambda x: x[0])
+        return matches[0][1]
+        
+    # 3. Check word-by-word
+    words = q.split()
+    for word in words:
+        for canonical, keywords in CANONICAL_SERVICES.items():
+            for kw in keywords:
+                if word == kw.lower():
+                    return canonical
+                    
+    return query.title()
+
 def _load_providers() -> list[dict[str, Any]]:
     """Load and normalise provider records from providers.json with in-memory caching.
 
@@ -410,7 +452,8 @@ def list_providers(
     providers = _load_providers()
 
     if service:
-        providers = [p for p in providers if p["service"].lower() == service.lower()]
+        normalized_service = normalize_service_type(service)
+        providers = [p for p in providers if p["service"].lower() == normalized_service.lower()]
     if city:
         providers = [
             p for p in providers
@@ -431,14 +474,15 @@ def search_providers(body: SearchRequest) -> dict[str, Any]:
     providers = _load_providers()
 
     # Filter by service category (case-insensitive)
+    normalized_service = normalize_service_type(body.service_type)
     matched = [
         p for p in providers
-        if p["service"].lower() == body.service_type.lower()
+        if p["service"].lower() == normalized_service.lower()
     ]
     if not matched:
         raise HTTPException(
             status_code=404,
-            detail=f"No providers found for service '{body.service_type}'.",
+            detail=f"No providers found for service '{body.service_type}' (mapped to '{normalized_service}').",
         )
 
     # Attach distance and filter by radius
