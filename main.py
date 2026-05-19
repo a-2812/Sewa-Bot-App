@@ -199,7 +199,7 @@ def _load_agent_logs() -> list[dict[str, Any]]:
         return []
 
 
-def log_agent_action(agent_name: str, action: str, reasoning: str) -> None:
+def log_agent_action(agent: str, action: str, reasoning: Optional[str] = None) -> None:
     """Log an agent's decision-making process to data/agent_logs.json."""
     AGENT_LOGS_FILE = _BASE / "data" / "agent_logs.json"
     AGENT_LOGS_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -207,9 +207,10 @@ def log_agent_action(agent_name: str, action: str, reasoning: str) -> None:
     logs = _load_agent_logs()
     logs.append({
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "agent_name": agent_name,
+        "agent": agent,
+        "agent_name": agent,
         "action": action,
-        "reasoning": reasoning
+        "reasoning": reasoning or ""
     })
     
     AGENT_LOGS_FILE.write_text(
