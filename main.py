@@ -62,6 +62,16 @@ MAX_REQUESTS_PER_MINUTE = 10
 _ip_requests = defaultdict(list)
 
 @app.middleware("http")
+async def response_time_logging_middleware(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    print(f"[{datetime.now(timezone.utc).isoformat()}] {request.method} {request.url.path} responded in {process_time:.4f}s (status: {response.status_code})")
+    response.headers["X-Process-Time"] = f"{process_time:.4f}s"
+    return response
+
+
+@app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     client_ip = request.client.host if request.client else "127.0.0.1"
     now = time.time()
@@ -82,7 +92,7 @@ async def rate_limit_middleware(request: Request, call_next):
 @app.middleware("http")
 async def timeout_middleware(request: Request, call_next):
     try:
-        return await asyncio.wait_for(call_next(request), timeout=15.0)
+        return await asyncio.wait_for(call_next(request), timeout=2.0)
     except asyncio.TimeoutError:
         return JSONResponse(
             status_code=504,
@@ -115,14 +125,24 @@ BOOKINGS_FILE  = _BASE / "data" / "bookings.json"
 # ---------------------------------------------------------------------------
 
 
+_cached_providers: Optional[list[dict[str, Any]]] = None
+_cached_providers_timestamp: float = 0.0
+PROVIDER_CACHE_TTL: float = 300.0  # 5 minutes
+
 def _load_providers() -> list[dict[str, Any]]:
-    """Load and normalise provider records from providers.json.
+    """Load and normalise provider records from providers.json with in-memory caching.
 
     Field mapping (new schema → internal):
         service_type → service
         price        → price_pkr
         verified     → verified  (also used in ranking)
     """
+    global _cached_providers, _cached_providers_timestamp
+    now = time.time()
+    
+    if _cached_providers is not None and (now - _cached_providers_timestamp) < PROVIDER_CACHE_TTL:
+        return _cached_providers
+
     if not PROVIDERS_FILE.exists():
         raise HTTPException(
             status_code=503,
@@ -146,6 +166,9 @@ def _load_providers() -> list[dict[str, Any]]:
             # Availability alias (True unless explicitly False)
             "available":    p.get("verified", p.get("available", True)),
         })
+    
+    _cached_providers = normalised
+    _cached_providers_timestamp = now
     return normalised
 
 
