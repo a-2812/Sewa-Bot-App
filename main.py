@@ -12,6 +12,7 @@ or:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import uuid
@@ -23,6 +24,8 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+from firebase_config import get_firestore_client
 
 # ---------------------------------------------------------------------------
 # App bootstrap
@@ -95,21 +98,23 @@ def _load_providers() -> list[dict[str, Any]]:
 
 
 def _load_bookings() -> dict[str, Any]:
-    """Return the bookings dict from bookings.json (creates file if missing)."""
-    if not BOOKINGS_FILE.exists():
-        return {}
+    """Return the bookings dict from Firestore."""
     try:
-        return json.loads(BOOKINGS_FILE.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+        db = get_firestore_client()
+        docs = db.collection('bookings').stream()
+        return {doc.id: doc.to_dict() for doc in docs}
+    except Exception as e:
+        print(f"Error loading bookings from Firestore: {e}")
         return {}
 
 
-def _save_bookings(bookings: dict[str, Any]) -> None:
-    """Atomically persist the bookings dict to bookings.json."""
-    BOOKINGS_FILE.write_text(
-        json.dumps(bookings, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+def _save_booking(booking_id: str, record: dict[str, Any]) -> None:
+    """Persist a single booking to Firestore."""
+    try:
+        db = get_firestore_client()
+        db.collection('bookings').document(booking_id).set(record)
+    except Exception as e:
+        print(f"Error saving booking to Firestore: {e}")
 
 
 def _save_notification(record: dict[str, Any]) -> None:
@@ -474,9 +479,7 @@ def create_booking(body: BookingRequest) -> BookingResponse:
         "updated_at":   created_at,
     }
 
-    bookings = _load_bookings()
-    bookings[booking_id] = record
-    _save_bookings(bookings)
+    _save_booking(booking_id, record)
 
     price_pkr = provider.get("price_pkr", provider.get("price", 0))
     receipt_text = (
@@ -592,6 +595,43 @@ def get_agent_logs(
         "total": len(recent_logs),
         "logs": recent_logs
     }
+
+
+# ---------------------------------------------------------------------------
+# Background Tasks
+# ---------------------------------------------------------------------------
+
+async def backup_firestore_data():
+    """Background task to back up Firestore data every hour."""
+    while True:
+        await asyncio.sleep(3600)  # Wait 1 hour
+        try:
+            db = get_firestore_client()
+            backup_data = {"bookings": {}, "providers": {}}
+            
+            # Export bookings
+            bookings_docs = db.collection('bookings').stream()
+            for doc in bookings_docs:
+                backup_data["bookings"][doc.id] = doc.to_dict()
+                
+            # Export providers
+            providers_docs = db.collection('providers').stream()
+            for doc in providers_docs:
+                backup_data["providers"][doc.id] = doc.to_dict()
+                
+            backup_file = _BASE / "data" / "backup.json"
+            backup_file.parent.mkdir(parents=True, exist_ok=True)
+            backup_file.write_text(
+                json.dumps(backup_data, indent=2, ensure_ascii=False), 
+                encoding="utf-8"
+            )
+            print(f"[{datetime.now(timezone.utc).isoformat()}] Backed up Firestore data to {backup_file}")
+        except Exception as e:
+            print(f"Error during backup: {e}")
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(backup_firestore_data())
 
 
 # ---------------------------------------------------------------------------
