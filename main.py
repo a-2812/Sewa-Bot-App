@@ -131,6 +131,35 @@ def _save_notification(record: dict[str, Any]) -> None:
     )
 
 
+def _load_agent_logs() -> list[dict[str, Any]]:
+    AGENT_LOGS_FILE = _BASE / "data" / "agent_logs.json"
+    if not AGENT_LOGS_FILE.exists():
+        return []
+    try:
+        return json.loads(AGENT_LOGS_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+
+
+def log_agent_action(agent_name: str, action: str, reasoning: str) -> None:
+    """Log an agent's decision-making process to data/agent_logs.json."""
+    AGENT_LOGS_FILE = _BASE / "data" / "agent_logs.json"
+    AGENT_LOGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    
+    logs = _load_agent_logs()
+    logs.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "agent_name": agent_name,
+        "action": action,
+        "reasoning": reasoning
+    })
+    
+    AGENT_LOGS_FILE.write_text(
+        json.dumps(logs, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Haversine utility
 # ---------------------------------------------------------------------------
@@ -537,6 +566,32 @@ def send_notification(body: NotifyRequest) -> NotifyResponse:
         message_id=message_id,
         timestamp=timestamp,
     )
+
+
+# ---------------------------------------------------------------------------
+# Agent Logs Route
+# ---------------------------------------------------------------------------
+
+@app.get("/agent-logs", summary="Get Agent Reasoning Traces", tags=["Agents"])
+def get_agent_logs(
+    limit: int = Query(50, description="Maximum number of recent logs to return"),
+) -> dict[str, Any]:
+    """Retrieve the most recent agent reasoning traces.
+    
+    This is used by Member C's mobile app to display agent decisions to users.
+    Returns logs sorted from newest to oldest.
+    """
+    logs = _load_agent_logs()
+    
+    # Sort newest first
+    logs.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    
+    recent_logs = logs[:limit]
+    
+    return {
+        "total": len(recent_logs),
+        "logs": recent_logs
+    }
 
 
 # ---------------------------------------------------------------------------
