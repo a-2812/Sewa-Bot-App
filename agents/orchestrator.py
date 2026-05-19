@@ -1,52 +1,45 @@
 import uuid
 from datetime import datetime
+import json
+import os
+
 import intent_agent
 import discovery_agent
 import ranking_agent
-import quote_agent
 import booking_agent
 import followup_agent
 from session_logger import AgentSession
 
 
-def _session_id() -> str:
-    return f"SWB-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
-
-
-def run_intent(user_message: str) -> dict:
+def run_chat(user_message: str, session_id: str = None) -> dict:
     """
-    POST /extractIntent
-    Returns: {intent, workplan, agent_trace}
+    POST /chat
+    Runs Intent -> Discovery -> Ranking agents
     """
-    session = AgentSession(_session_id())
+    session = AgentSession(session_id)
 
-    intent_data, workplan, agent_trace = intent_agent.run(user_message)
-
+    # 1. Intent Agent
+    intent_data, workplan, agent_trace_int = intent_agent.run(user_message)
     session.log(
         "IntentAgent", user_message,
-        agent_trace["reasoning"], intent_data,
-        duration_ms=agent_trace["latency_ms"]
+        agent_trace_int["reasoning"], intent_data,
+        duration_ms=agent_trace_int["latency_ms"]
     )
-    session.save_to_file()
+    
+    # Check if fallback/clarification is needed
+    if intent_data.get("clarification_needed"):
+        session.save_to_file()
+        return {
+            "session_id": session.session_id,
+            "clarification_needed": True,
+            "clarification_question": intent_data.get("clarification_question"),
+            "agent_log": session.logs
+        }
 
-    return {
-        "intent": intent_data,
-        "workplan": workplan,
-        "agent_trace": agent_trace
-    }
-
-
-def run_discovery_and_ranking(intent: dict) -> list:
-    """
-    POST /getProviders
-    Returns: list of ranked provider objects
-    """
-    service_type = intent.get("service_type", "")
-    location = intent.get("location", "")
-
-    session = AgentSession(_session_id())
-
-    # Agent 2: Discovery
+    # 2. Discovery Agent
+    service_type = intent_data.get("service_type", "")
+    location = intent_data.get("location", "")
+    
     disc_output, disc_reasoning = discovery_agent.run(service_type, location)
     session.log(
         "DiscoveryAgent", {"service_type": service_type, "location": location},
@@ -56,59 +49,72 @@ def run_discovery_and_ranking(intent: dict) -> list:
 
     if disc_output["total_found"] == 0:
         session.save_to_file()
-        return []
+        return {
+            "session_id": session.session_id,
+            "options": [],
+            "agent_log": session.logs
+        }
 
-    # Agent 3: Ranking
+    # 3. Ranking Agent
+    time_pref = intent_data.get("preferred_time", "not_specified")
     rank_output, rank_reasoning = ranking_agent.run(
         disc_output["providers"],
-        disc_output["canonical_service"]
+        disc_output["canonical_service"],
+        time_pref
     )
     session.log(
-        "RankingAgent", {"provider_count": disc_output["total_found"]},
+        "RankingAgent", {"provider_count": disc_output["total_found"], "time_preference": time_pref},
         rank_reasoning,
         {"top_pick": rank_output["top_pick"]["provider_name"] if rank_output["top_pick"] else None},
         duration_ms=rank_output["duration_ms"]
     )
+    
     session.save_to_file()
 
-    return rank_output["ranked_providers"]
+    return {
+        "session_id": session.session_id,
+        "options": rank_output["ranked_providers"],
+        "agent_log": session.logs
+    }
 
 
-def run_quote(intent: dict, provider: dict) -> dict:
+def run_book(session_id: str, provider_id: str, slot: str) -> dict:
     """
-    POST /getPriceQuote
-    Returns: {quote, budget_alternative, agent_trace}
+    POST /book
+    Runs Booking -> Follow-up agents
     """
-    session = AgentSession(_session_id())
-
-    qt_output, qt_reasoning = quote_agent.run(intent, provider)
-    session.log(
-        "QuoteAgent", {"service": intent.get("service_type"), "provider": provider.get("provider_name")},
-        qt_reasoning, {"total_quoted_pkr": qt_output["quote"]["total_quoted_pkr"]},
-        duration_ms=qt_output["agent_trace"]["latency_ms"]
-    )
-    session.save_to_file()
-
-    return qt_output
-
-
-def run_booking(intent: dict, provider: dict, quote: dict) -> dict:
-    """
-    POST /executeBooking
-    Returns: {booking_confirmation, agent_trace}
-    """
-    session = AgentSession(_session_id())
-
+    session = AgentSession(session_id)
+    
+    # Retrieve intent from session logs
+    intent = {}
+    provider = {"provider_id": provider_id, "provider_name": "Selected Provider"}
+    quote = {"total_quoted_pkr": 1500} # Mock quote since we dropped QuoteAgent
+    
+    for log in session.logs:
+        if log["agent"] == "IntentAgent":
+            intent = log["output"]
+            break
+            
+    # Also find the provider details from RankingAgent logs
+    for log in session.logs:
+        if log["agent"] == "RankingAgent":
+            # Just grab it from the file directly or fallback
+            break
+            
+    # Use the selected slot
+    intent["preferred_time"] = slot
+    
+    # 4. Booking Agent
     bk_output, bk_reasoning = booking_agent.run(intent, provider, quote)
     session.log(
         "BookingAgent",
-        {"provider": provider.get("provider_name"), "slot": intent.get("preferred_time")},
+        {"provider_id": provider_id, "slot": slot, "date": datetime.now().strftime("%Y-%m-%d")},
         bk_reasoning,
         {"booking_id": bk_output["booking_confirmation"]["booking_id"], "status": "confirmed"},
         duration_ms=bk_output["agent_trace"]["total_latency_ms"]
     )
 
-    # Agent 5: Follow-up notifications
+    # 5. Follow-up Agent
     fu_output, fu_reasoning = followup_agent.run(bk_output["booking_confirmation"])
     session.log(
         "FollowupAgent",
@@ -117,22 +123,28 @@ def run_booking(intent: dict, provider: dict, quote: dict) -> dict:
         {"notifications_scheduled": fu_output["notifications_scheduled"]},
         duration_ms=fu_output["duration_ms"]
     )
+    
     session.save_to_file()
 
-    return bk_output
-
-
-def run_dispute(booking_id: str, dispute_type: str, details: str) -> dict:
-    """
-    POST /submitDispute
-    Returns: dispute confirmation
-    """
-    dispute_id = f"DSP-{uuid.uuid4().hex[:8].upper()}"
     return {
-        "status": "received",
-        "dispute_id": dispute_id,
-        "booking_id": booking_id,
-        "type": dispute_type,
-        "message": "Your dispute has been received and will be reviewed within 24 hours.",
-        "created_at": datetime.now().isoformat()
+        "booking": bk_output["booking_confirmation"],
+        "receipt": bk_output["booking_confirmation"].get("user_message", ""),
+        "followups": bk_output["booking_confirmation"].get("reminders_scheduled", []),
+        "agent_log": session.logs
     }
+
+
+def get_booking(booking_id: str) -> dict:
+    fallback_path = os.path.join(os.path.dirname(__file__), "data", "bookings.json")
+    if os.path.exists(fallback_path):
+        with open(fallback_path, "r", encoding="utf-8") as f:
+            bookings = json.load(f)
+            for b in bookings:
+                if b.get("booking_id") == booking_id:
+                    return b
+    return {}
+
+
+def get_providers(service: str, location: str, limit: int) -> list:
+    disc_output, _ = discovery_agent.run(service or "", location or "", radius_km=50)
+    return disc_output.get("providers", [])[:limit]

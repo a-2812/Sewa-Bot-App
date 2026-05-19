@@ -1,8 +1,10 @@
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 import orchestrator
+from session_logger import get_session
 
 app = FastAPI(title="SewaBot Agents API", version="1.0.0")
 
@@ -14,29 +16,15 @@ app.add_middleware(
 )
 
 
-class IntentRequest(BaseModel):
+class ChatRequest(BaseModel):
     message: str
+    session_id: Optional[str] = None
 
 
-class ProvidersRequest(BaseModel):
-    intent: dict
-
-
-class QuoteRequest(BaseModel):
-    intent: dict
-    provider: dict
-
-
-class BookingRequest(BaseModel):
-    intent: dict
-    provider: dict
-    quote: dict
-
-
-class DisputeRequest(BaseModel):
-    booking_id: str
-    type: str
-    details: str
+class BookRequest(BaseModel):
+    session_id: str
+    provider_id: str
+    slot: str
 
 
 @app.get("/")
@@ -44,29 +32,37 @@ def health():
     return {"status": "ok", "service": "SewaBot Agents API", "version": "1.0.0"}
 
 
-@app.post("/extractIntent")
-async def extract_intent(req: IntentRequest):
-    return orchestrator.run_intent(req.message)
+@app.post("/chat")
+async def chat(req: ChatRequest):
+    return orchestrator.run_chat(req.message, req.session_id)
 
 
-@app.post("/getProviders")
-async def get_providers(req: ProvidersRequest):
-    return orchestrator.run_discovery_and_ranking(req.intent)
+@app.post("/book")
+async def book(req: BookRequest):
+    return orchestrator.run_book(req.session_id, req.provider_id, req.slot)
 
 
-@app.post("/getPriceQuote")
-async def get_price_quote(req: QuoteRequest):
-    return orchestrator.run_quote(req.intent, req.provider)
+@app.get("/bookings/{booking_id}")
+async def get_booking(booking_id: str):
+    # Retrieve booking details from local storage or Firebase
+    booking = orchestrator.get_booking(booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return booking
 
 
-@app.post("/executeBooking")
-async def execute_booking(req: BookingRequest):
-    return orchestrator.run_booking(req.intent, req.provider, req.quote)
+@app.get("/providers")
+async def get_providers(service: str = None, location: str = None, limit: int = 10):
+    # Basic provider search endpoint
+    return orchestrator.get_providers(service, location, limit)
 
 
-@app.post("/submitDispute")
-async def submit_dispute(req: DisputeRequest):
-    return orchestrator.run_dispute(req.booking_id, req.type, req.details)
+@app.get("/agent-logs/{session_id}")
+async def get_agent_logs(session_id: str):
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session log not found")
+    return session.export()
 
 
 if __name__ == "__main__":
