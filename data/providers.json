@@ -1,0 +1,602 @@
+[
+  {
+    "id": "p001",
+    "name": "Usman Ali",
+    "service_type": "AC Technician",
+    "location": {
+      "area": "F-10 Markaz",
+      "city": "Islamabad",
+      "lat": 33.6938,
+      "lng": 73.0169
+    },
+    "rating": 4.7,
+    "price": 1500,
+    "verified": true,
+    "phone": "+92-300-1234567"
+  },
+  {
+    "id": "p002",
+    "name": "Tariq Mehmood",
+    "service_type": "AC Technician",
+    "location": {
+      "area": "G-11 Markaz",
+      "city": "Islamabad",
+      "lat": 33.6960,
+      "lng": 72.9980
+    },
+    "rating": 4.5,
+    "price": 1200,
+    "verified": true,
+    "phone": "+92-301-2345678"
+  },
+  {
+    "id": "p003",
+    "name": "Asif Raza",
+    "service_type": "AC Technician",
+    "location": {
+      "area": "Bahria Town Phase 4",
+      "city": "Islamabad",
+      "lat": 33.5320,
+      "lng": 73.1089
+    },
+    "rating": 4.3,
+    "price": 1800,
+    "verified": false,
+    "phone": "+92-302-3456789"
+  },
+  {
+    "id": "p004",
+    "name": "Kamran Hussain",
+    "service_type": "AC Technician",
+    "location": {
+      "area": "DHA Phase 5",
+      "city": "Lahore",
+      "lat": 31.4697,
+      "lng": 74.3936
+    },
+    "rating": 4.8,
+    "price": 2000,
+    "verified": true,
+    "phone": "+92-303-4567890"
+  },
+  {
+    "id": "p005",
+    "name": "Bilal Nawaz",
+    "service_type": "AC Technician",
+    "location": {
+      "area": "Gulberg III",
+      "city": "Lahore",
+      "lat": 31.5086,
+      "lng": 74.3407
+    },
+    "rating": 4.6,
+    "price": 1700,
+    "verified": true,
+    "phone": "+92-304-5678901"
+  },
+  {
+    "id": "p006",
+    "name": "Zubair Ahmed",
+    "service_type": "AC Technician",
+    "location": {
+      "area": "Johar Town",
+      "city": "Lahore",
+      "lat": 31.4673,
+      "lng": 74.2689
+    },
+    "rating": 4.2,
+    "price": 1400,
+    "verified": false,
+    "phone": "+92-305-6789012"
+  },
+  {
+    "id": "p007",
+    "name": "Nadeem Iqbal",
+    "service_type": "AC Technician",
+    "location": {
+      "area": "Model Town",
+      "city": "Lahore",
+      "lat": 31.4840,
+      "lng": 74.3211
+    },
+    "rating": 4.9,
+    "price": 2200,
+    "verified": true,
+    "phone": "+92-306-7890123"
+  },
+  {
+    "id": "p008",
+    "name": "Rana Shahid",
+    "service_type": "Plumber",
+    "location": {
+      "area": "I-8 Markaz",
+      "city": "Islamabad",
+      "lat": 33.6713,
+      "lng": 73.0614
+    },
+    "rating": 4.4,
+    "price": 800,
+    "verified": true,
+    "phone": "+92-307-8901234"
+  },
+  {
+    "id": "p009",
+    "name": "Mushtaq Khan",
+    "service_type": "Plumber",
+    "location": {
+      "area": "G-9 Markaz",
+      "city": "Islamabad",
+      "lat": 33.6987,
+      "lng": 73.0411
+    },
+    "rating": 4.1,
+    "price": 700,
+    "verified": false,
+    "phone": "+92-308-9012345"
+  },
+  {
+    "id": "p010",
+    "name": "Sajjad Malik",
+    "service_type": "Plumber",
+    "location": {
+      "area": "E-11",
+      "city": "Islamabad",
+      "lat": 33.7295,
+      "lng": 72.9997
+    },
+    "rating": 4.6,
+    "price": 1000,
+    "verified": true,
+    "phone": "+92-309-0123456"
+  },
+  {
+    "id": "p011",
+    "name": "Adnan Butt",
+    "service_type": "Plumber",
+    "location": {
+      "area": "Bahria Town Sector C",
+      "city": "Lahore",
+      "lat": 31.3624,
+      "lng": 74.1880
+    },
+    "rating": 4.7,
+    "price": 1100,
+    "verified": true,
+    "phone": "+92-310-1234567"
+  },
+  {
+    "id": "p012",
+    "name": "Imran Shafiq",
+    "service_type": "Plumber",
+    "location": {
+      "area": "Gulshan-e-Ravi",
+      "city": "Lahore",
+      "lat": 31.5421,
+      "lng": 74.3119
+    },
+    "rating": 3.9,
+    "price": 600,
+    "verified": false,
+    "phone": "+92-311-2345678"
+  },
+  {
+    "id": "p013",
+    "name": "Waseem Akhtar",
+    "service_type": "Plumber",
+    "location": {
+      "area": "Allama Iqbal Town",
+      "city": "Lahore",
+      "lat": 31.5085,
+      "lng": 74.2758
+    },
+    "rating": 4.5,
+    "price": 900,
+    "verified": true,
+    "phone": "+92-312-3456789"
+  },
+  {
+    "id": "p014",
+    "name": "Shahbaz Hussain",
+    "service_type": "Electrician",
+    "location": {
+      "area": "F-7 Markaz",
+      "city": "Islamabad",
+      "lat": 33.7215,
+      "lng": 73.0576
+    },
+    "rating": 4.8,
+    "price": 1300,
+    "verified": true,
+    "phone": "+92-313-4567890"
+  },
+  {
+    "id": "p015",
+    "name": "Ghulam Abbas",
+    "service_type": "Electrician",
+    "location": {
+      "area": "Blue Area",
+      "city": "Islamabad",
+      "lat": 33.7115,
+      "lng": 73.0600
+    },
+    "rating": 4.3,
+    "price": 1100,
+    "verified": true,
+    "phone": "+92-314-5678901"
+  },
+  {
+    "id": "p016",
+    "name": "Khurram Shahzad",
+    "service_type": "Electrician",
+    "location": {
+      "area": "PWD Housing Society",
+      "city": "Islamabad",
+      "lat": 33.6499,
+      "lng": 73.1068
+    },
+    "rating": 4.0,
+    "price": 950,
+    "verified": false,
+    "phone": "+92-315-6789012"
+  },
+  {
+    "id": "p017",
+    "name": "Rizwan Gul",
+    "service_type": "Electrician",
+    "location": {
+      "area": "DHA Phase 1",
+      "city": "Lahore",
+      "lat": 31.4917,
+      "lng": 74.3996
+    },
+    "rating": 4.9,
+    "price": 1600,
+    "verified": true,
+    "phone": "+92-316-7890123"
+  },
+  {
+    "id": "p018",
+    "name": "Faisal Mahmood",
+    "service_type": "Electrician",
+    "location": {
+      "area": "Cantt",
+      "city": "Lahore",
+      "lat": 31.5289,
+      "lng": 74.3867
+    },
+    "rating": 4.6,
+    "price": 1400,
+    "verified": true,
+    "phone": "+92-317-8901234"
+  },
+  {
+    "id": "p019",
+    "name": "Pervez Anwar",
+    "service_type": "Electrician",
+    "location": {
+      "area": "Wapda Town",
+      "city": "Lahore",
+      "lat": 31.4565,
+      "lng": 74.2590
+    },
+    "rating": 4.2,
+    "price": 1050,
+    "verified": false,
+    "phone": "+92-318-9012345"
+  },
+  {
+    "id": "p020",
+    "name": "Hamid Siddiqui",
+    "service_type": "Electrician",
+    "location": {
+      "area": "Samanabad",
+      "city": "Lahore",
+      "lat": 31.5344,
+      "lng": 74.3002
+    },
+    "rating": 4.4,
+    "price": 1200,
+    "verified": true,
+    "phone": "+92-319-0123456"
+  },
+  {
+    "id": "p021",
+    "name": "Ahsan Farooq",
+    "service_type": "Math Tutor",
+    "location": {
+      "area": "F-8 Markaz",
+      "city": "Islamabad",
+      "lat": 33.7076,
+      "lng": 73.0465
+    },
+    "rating": 4.9,
+    "price": 2500,
+    "verified": true,
+    "phone": "+92-320-1234567"
+  },
+  {
+    "id": "p022",
+    "name": "Sana Zuberi",
+    "service_type": "Math Tutor",
+    "location": {
+      "area": "G-6 Markaz",
+      "city": "Islamabad",
+      "lat": 33.7262,
+      "lng": 73.0698
+    },
+    "rating": 4.7,
+    "price": 2000,
+    "verified": true,
+    "phone": "+92-321-2345678"
+  },
+  {
+    "id": "p023",
+    "name": "Noman Khalid",
+    "service_type": "Math Tutor",
+    "location": {
+      "area": "DHA Phase 2",
+      "city": "Islamabad",
+      "lat": 33.5247,
+      "lng": 73.1237
+    },
+    "rating": 4.5,
+    "price": 3000,
+    "verified": true,
+    "phone": "+92-322-3456789"
+  },
+  {
+    "id": "p024",
+    "name": "Ayesha Tariq",
+    "service_type": "Math Tutor",
+    "location": {
+      "area": "Gulberg II",
+      "city": "Lahore",
+      "lat": 31.5187,
+      "lng": 74.3352
+    },
+    "rating": 4.8,
+    "price": 2800,
+    "verified": true,
+    "phone": "+92-323-4567890"
+  },
+  {
+    "id": "p025",
+    "name": "Junaid Hassan",
+    "service_type": "Math Tutor",
+    "location": {
+      "area": "Defence Road",
+      "city": "Lahore",
+      "lat": 31.4409,
+      "lng": 74.2985
+    },
+    "rating": 4.3,
+    "price": 1800,
+    "verified": false,
+    "phone": "+92-324-5678901"
+  },
+  {
+    "id": "p026",
+    "name": "Madiha Saeed",
+    "service_type": "Math Tutor",
+    "location": {
+      "area": "Township",
+      "city": "Lahore",
+      "lat": 31.4747,
+      "lng": 74.2839
+    },
+    "rating": 4.6,
+    "price": 2200,
+    "verified": true,
+    "phone": "+92-325-6789012"
+  },
+  {
+    "id": "p027",
+    "name": "Rabia Noor",
+    "service_type": "Beautician",
+    "location": {
+      "area": "F-6 Markaz",
+      "city": "Islamabad",
+      "lat": 33.7256,
+      "lng": 73.0798
+    },
+    "rating": 4.9,
+    "price": 3500,
+    "verified": true,
+    "phone": "+92-326-7890123"
+  },
+  {
+    "id": "p028",
+    "name": "Hira Waqas",
+    "service_type": "Beautician",
+    "location": {
+      "area": "G-10 Markaz",
+      "city": "Islamabad",
+      "lat": 33.6928,
+      "lng": 73.0279
+    },
+    "rating": 4.6,
+    "price": 2500,
+    "verified": true,
+    "phone": "+92-327-8901234"
+  },
+  {
+    "id": "p029",
+    "name": "Nadia Riaz",
+    "service_type": "Beautician",
+    "location": {
+      "area": "Sector E-7",
+      "city": "Islamabad",
+      "lat": 33.7347,
+      "lng": 73.0467
+    },
+    "rating": 4.4,
+    "price": 2000,
+    "verified": false,
+    "phone": "+92-328-9012345"
+  },
+  {
+    "id": "p030",
+    "name": "Sadia Amin",
+    "service_type": "Beautician",
+    "location": {
+      "area": "DHA Phase 6",
+      "city": "Lahore",
+      "lat": 31.4603,
+      "lng": 74.4122
+    },
+    "rating": 4.8,
+    "price": 4000,
+    "verified": true,
+    "phone": "+92-329-0123456"
+  },
+  {
+    "id": "p031",
+    "name": "Mehwish Arif",
+    "service_type": "Beautician",
+    "location": {
+      "area": "Bahria Town Lahore",
+      "city": "Lahore",
+      "lat": 31.3731,
+      "lng": 74.1878
+    },
+    "rating": 4.7,
+    "price": 3200,
+    "verified": true,
+    "phone": "+92-330-1234567"
+  },
+  {
+    "id": "p032",
+    "name": "Zara Khan",
+    "service_type": "Beautician",
+    "location": {
+      "area": "Gulberg V",
+      "city": "Lahore",
+      "lat": 31.5005,
+      "lng": 74.3292
+    },
+    "rating": 4.5,
+    "price": 2800,
+    "verified": true,
+    "phone": "+92-331-2345678"
+  },
+  {
+    "id": "p033",
+    "name": "Salma Bibi",
+    "service_type": "Beautician",
+    "location": {
+      "area": "Faisal Town",
+      "city": "Lahore",
+      "lat": 31.5012,
+      "lng": 74.2944
+    },
+    "rating": 4.2,
+    "price": 1800,
+    "verified": false,
+    "phone": "+92-332-3456789"
+  },
+  {
+    "id": "p034",
+    "name": "Javed Iqbal",
+    "service_type": "Carpenter",
+    "location": {
+      "area": "G-8 Markaz",
+      "city": "Islamabad",
+      "lat": 33.6990,
+      "lng": 73.0562
+    },
+    "rating": 4.5,
+    "price": 2000,
+    "verified": true,
+    "phone": "+92-333-4567890"
+  },
+  {
+    "id": "p035",
+    "name": "Liaquat Ali",
+    "service_type": "Carpenter",
+    "location": {
+      "area": "I-9 Industrial Area",
+      "city": "Islamabad",
+      "lat": 33.6545,
+      "lng": 73.0728
+    },
+    "rating": 4.3,
+    "price": 1800,
+    "verified": false,
+    "phone": "+92-334-5678901"
+  },
+  {
+    "id": "p036",
+    "name": "Arshad Mehmood",
+    "service_type": "Carpenter",
+    "location": {
+      "area": "Bara Kahu",
+      "city": "Islamabad",
+      "lat": 33.7477,
+      "lng": 73.1310
+    },
+    "rating": 4.7,
+    "price": 2500,
+    "verified": true,
+    "phone": "+92-335-6789012"
+  },
+  {
+    "id": "p037",
+    "name": "Nasir Ilyas",
+    "service_type": "Carpenter",
+    "location": {
+      "area": "DHA Phase 8",
+      "city": "Lahore",
+      "lat": 31.4432,
+      "lng": 74.4301
+    },
+    "rating": 4.8,
+    "price": 3000,
+    "verified": true,
+    "phone": "+92-336-7890123"
+  },
+  {
+    "id": "p038",
+    "name": "Shaukat Gondal",
+    "service_type": "Carpenter",
+    "location": {
+      "area": "Shadman",
+      "city": "Lahore",
+      "lat": 31.5411,
+      "lng": 74.3265
+    },
+    "rating": 4.4,
+    "price": 2200,
+    "verified": true,
+    "phone": "+92-337-8901234"
+  },
+  {
+    "id": "p039",
+    "name": "Zafar Hussain",
+    "service_type": "Carpenter",
+    "location": {
+      "area": "Muslim Town",
+      "city": "Lahore",
+      "lat": 31.5172,
+      "lng": 74.3068
+    },
+    "rating": 4.1,
+    "price": 1600,
+    "verified": false,
+    "phone": "+92-338-9012345"
+  },
+  {
+    "id": "p040",
+    "name": "Tahir Ghani",
+    "service_type": "Carpenter",
+    "location": {
+      "area": "Cavalry Ground",
+      "city": "Lahore",
+      "lat": 31.5386,
+      "lng": 74.3704
+    },
+    "rating": 4.6,
+    "price": 2700,
+    "verified": true,
+    "phone": "+92-339-0123456"
+  }
+]
