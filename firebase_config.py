@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
+# pyrefly: ignore [missing-import]
 import firebase_admin
+# pyrefly: ignore [missing-import]
 from firebase_admin import credentials, firestore
 
 _BASE = Path(__file__).parent

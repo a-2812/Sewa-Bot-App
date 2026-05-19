@@ -1,10 +1,11 @@
 import json
 from pathlib import Path
 from firebase_config import get_firestore_client
+# pyrefly: ignore [missing-import]
 import firebase_admin
 
 _BASE = Path(__file__).parent
-PROVIDERS_FILE = _BASE / "providers.json"
+PROVIDERS_FILE = _BASE / "data" / "providers.json"
 
 def upload_providers():
     if not PROVIDERS_FILE.exists():

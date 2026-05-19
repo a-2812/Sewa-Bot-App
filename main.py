@@ -82,7 +82,7 @@ async def rate_limit_middleware(request: Request, call_next):
 @app.middleware("http")
 async def timeout_middleware(request: Request, call_next):
     try:
-        return await asyncio.wait_for(call_next(request), timeout=5.0)
+        return await asyncio.wait_for(call_next(request), timeout=15.0)
     except asyncio.TimeoutError:
         return JSONResponse(
             status_code=504,
@@ -107,8 +107,8 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ---------------------------------------------------------------------------
 
 _BASE = Path(__file__).parent
-PROVIDERS_FILE = _BASE / "providers.json"
-BOOKINGS_FILE  = _BASE / "bookings.json"
+PROVIDERS_FILE = _BASE / "data" / "providers.json"
+BOOKINGS_FILE  = _BASE / "data" / "bookings.json"
 
 # ---------------------------------------------------------------------------
 # Data-layer helpers
