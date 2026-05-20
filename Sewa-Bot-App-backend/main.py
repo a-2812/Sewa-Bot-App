@@ -13,8 +13,12 @@ or:
 from __future__ import annotations
 
 import asyncio
+import email.mime.multipart
+import email.mime.text
 import json
 import math
+import os
+import smtplib
 import uuid
 import time
 from collections import defaultdict
@@ -1046,6 +1050,88 @@ async def startup_event():
         await asyncio.get_event_loop().run_in_executor(None, ensure_providers_in_firestore)
     except Exception as e:
         print(f"[startup] Provider seed skipped: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Auth / Email endpoints
+# ---------------------------------------------------------------------------
+
+class WelcomeEmailRequest(BaseModel):
+    name:  str
+    email: str
+    role:  str = "user"
+
+
+def _send_smtp_email(to_email: str, subject: str, html_body: str) -> bool:
+    """
+    Send an email via SMTP.
+    Reads SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASSWORD from env vars.
+    Returns True on success, False on failure (never raises).
+    """
+    smtp_host  = os.getenv("SMTP_HOST",     "smtp.gmail.com")
+    smtp_port  = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user  = os.getenv("SMTP_USER",     "")
+    smtp_pass  = os.getenv("SMTP_PASSWORD", "")
+
+    if not smtp_user or not smtp_pass:
+        print("[smtp] SMTP_USER / SMTP_PASSWORD not set — skipping email send")
+        return False
+
+    try:
+        msg = email.mime.multipart.MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = f"SewaBot <{smtp_user}>"
+        msg["To"]      = to_email
+        msg.attach(email.mime.text.MIMEText(html_body, "html"))
+
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_user, to_email, msg.as_string())
+        print(f"[smtp] Sent '{subject}' to {to_email}")
+        return True
+    except Exception as exc:
+        print(f"[smtp] Failed to send email to {to_email}: {exc}")
+        return False
+
+
+@app.post("/auth/send-welcome", summary="Send SMTP welcome email", tags=["Auth"], status_code=200)
+async def send_welcome_email(req: WelcomeEmailRequest):
+    """
+    Called by Flutter after successful Firebase Auth signup.
+    Sends a branded welcome email via SMTP.
+    """
+    role_label = "Service Provider" if req.role == "provider" else "Customer"
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#000;color:#fff;border-radius:16px;padding:32px;">
+      <h1 style="font-size:28px;font-weight:700;margin-bottom:4px;">SewaBot</h1>
+      <p style="color:#888;font-size:13px;margin-top:0;">Pakistan ka AI Service Orchestrator</p>
+      <hr style="border:none;border-top:1px solid #222;margin:20px 0;">
+      <h2 style="font-size:20px;">Welcome, {req.name}!</h2>
+      <p style="color:#ccc;line-height:1.7;">Your SewaBot account has been created successfully as a <strong>{role_label}</strong>.</p>
+      <p style="color:#ccc;line-height:1.7;">You can now log in and start {'accepting jobs' if req.role == 'provider' else 'booking services'} in your area.</p>
+      <a href="https://sewabot-e836a.web.app" style="display:inline-block;background:#fff;color:#000;padding:12px 28px;border-radius:10px;font-weight:700;text-decoration:none;margin-top:16px;">Open SewaBot</a>
+      <hr style="border:none;border-top:1px solid #222;margin:28px 0 16px;">
+      <p style="color:#555;font-size:11px;">If you did not create this account, please ignore this email.</p>
+    </div>
+    """
+    success = _send_smtp_email(req.email, "Welcome to SewaBot!", html)
+    return {"sent": success, "email": req.email}
+
+
+@app.get("/auth/role/{uid}", summary="Get user role from Firestore", tags=["Auth"])
+async def get_user_role(uid: str = FastApiPath(..., description="Firebase UID")):
+    """
+    Returns the role and profile of a user from Firestore users/{uid}.
+    """
+    db = get_firestore_client()
+    if db is None:
+        raise HTTPException(status_code=503, detail="Firestore unavailable")
+    doc = db.collection("users").document(uid).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="User not found")
+    return doc.to_dict()
 
 
 # ---------------------------------------------------------------------------

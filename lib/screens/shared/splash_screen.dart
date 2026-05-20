@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/role.dart';
@@ -96,15 +97,29 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     final roleState = context.read<RoleState>();
-    final savedRole = await roleState.loadSavedRole();
 
+    // Check if Firebase has a logged-in session
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser != null) {
+      // Restore role from Firebase + Firestore
+      await roleState.loginWithFirebase(firebaseUser);
+      if (!mounted) return;
+      if (roleState.isProvider) {
+        Navigator.pushNamedAndRemoveUntil(context, '/provider/home', (_) => false);
+      } else {
+        Navigator.pushNamedAndRemoveUntil(context, '/user/home', (_) => false);
+      }
+      return;
+    }
+
+    // Fallback: check shared preferences cache
+    final savedRole = await roleState.loadSavedRole();
     if (!mounted) return;
 
     if (savedRole == UserRole.user) {
       Navigator.pushNamedAndRemoveUntil(context, '/user/home', (_) => false);
     } else if (savedRole == UserRole.provider) {
-      Navigator.pushNamedAndRemoveUntil(
-          context, '/provider/home', (_) => false);
+      Navigator.pushNamedAndRemoveUntil(context, '/provider/home', (_) => false);
     } else {
       Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
     }

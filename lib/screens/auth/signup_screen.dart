@@ -1,51 +1,41 @@
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../../models/role.dart';
 import '../../providers/role_state.dart';
 import '../../theme/app_theme.dart';
+import '../../config/app_config.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
-
   @override
   State<SignupScreen> createState() => _SignupScreenState();
 }
 
 class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
-  
-  // Registration Type: 'user' or 'provider'
   String _registerType = 'user';
 
-  // Common Fields
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _nameController            = TextEditingController();
+  final _emailController           = TextEditingController();
+  final _phoneController           = TextEditingController();
+  final _passwordController        = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _addressController = TextEditingController();
+  final _addressController         = TextEditingController();
+  final _bioController             = TextEditingController();
+  final _hourlyRateController      = TextEditingController();
 
-  // Provider Specific Fields
+  bool _obscurePassword        = true;
+  bool _obscureConfirmPassword = true;
+  bool _isLoading              = false;
+  String? _errorMessage;
   String? _selectedSpecialty;
-  final _hourlyRateController = TextEditingController();
   double _yearsOfExperience = 1.0;
-  final _bioController = TextEditingController();
 
-  // File Upload State
-  String? _certFileName;
-  bool _isUploadingCert = false;
-
-  String? _cvFileName;
-  bool _isUploadingCv = false;
-
-  final List<String> _specialties = [
-    'AC Repair',
-    'Plumbing',
-    'Electrical',
-    'Cleaning',
-    'Tutoring',
-    'Painting',
-  ];
+  final List<String> _specialties = ['AC Repair', 'Plumbing', 'Electrical', 'Cleaning', 'Tutoring', 'Painting', 'Carpentry'];
 
   @override
   void dispose() {
@@ -55,80 +45,95 @@ class _SignupScreenState extends State<SignupScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _addressController.dispose();
-    _hourlyRateController.dispose();
     _bioController.dispose();
+    _hourlyRateController.dispose();
     super.dispose();
   }
 
-  void _uploadFile(String type) {
-    setState(() {
-      if (type == 'cert') {
-        _isUploadingCert = true;
-      } else {
-        _isUploadingCv = true;
-      }
-    });
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() { _isLoading = true; _errorMessage = null; });
 
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      setState(() {
-        if (type == 'cert') {
-          _isUploadingCert = false;
-          _certFileName = 'certification_diploma.pdf';
-        } else {
-          _isUploadingCv = false;
-          _cvFileName = 'cv_professional.pdf';
-        }
-      });
-    });
-  }
-
-  void _removeFile(String type) {
-    setState(() {
-      if (type == 'cert') {
-        _certFileName = null;
-      } else {
-        _cvFileName = null;
-      }
-    });
-  }
-
-  void _submit() async {
-    if (_formKey.currentState!.validate()) {
-      if (_registerType == 'provider') {
-        if (_certFileName == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please upload your Certification document'),
-              backgroundColor: AppTheme.danger,
-            ),
-          );
-          return;
-        }
-        if (_cvFileName == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please upload your CV document'),
-              backgroundColor: AppTheme.danger,
-            ),
-          );
-          return;
-        }
-      }
-
-      // Set user role based on registration type
-      final role = _registerType == 'provider' ? UserRole.provider : UserRole.user;
-      await context.read<RoleState>().setRole(role);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Registration successful! Please verify your email.'),
-          backgroundColor: AppTheme.success,
-        ),
+    try {
+      // 1. Create Firebase Auth account
+      final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email:    _emailController.text.trim(),
+        password: _passwordController.text,
       );
-      Navigator.pushReplacementNamed(context, '/verify-email');
+
+      // 2. Update display name
+      await credential.user!.updateDisplayName(_nameController.text.trim());
+
+      // 3. Write user profile to Firestore
+      final uid  = credential.user!.uid;
+      final role = _registerType == 'provider' ? 'provider' : 'user';
+      final userDoc = <String, dynamic>{
+        'uid':       uid,
+        'name':      _nameController.text.trim(),
+        'email':     _emailController.text.trim().toLowerCase(),
+        'phone':     _phoneController.text.trim(),
+        'address':   _addressController.text.trim(),
+        'role':      role,
+        'created_at': FieldValue.serverTimestamp(),
+      };
+
+      if (_registerType == 'provider') {
+        userDoc['specialty']  = _selectedSpecialty ?? '';
+        userDoc['hourly_rate'] = double.tryParse(_hourlyRateController.text) ?? 0;
+        userDoc['experience_years'] = _yearsOfExperience.toInt();
+        userDoc['bio']        = _bioController.text.trim();
+        userDoc['is_approved'] = false; // Pending admin review
+      }
+
+      await FirebaseFirestore.instance.collection('users').doc(uid).set(userDoc);
+
+      // 4. Send welcome email via backend SMTP (best-effort)
+      try {
+        await http.post(
+          Uri.parse('${AppConfig.backendBaseUrl}/auth/send-welcome'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'name':  _nameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'role':  role,
+          }),
+        ).timeout(const Duration(seconds: 10));
+      } catch (_) {} // Don't fail signup if email fails
+
+      // 5. Set role in app state
+      if (!mounted) return;
+      final roleState = context.read<RoleState>();
+      await roleState.loginWithFirebase(credential.user!);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Account created! Welcome to SewaBot.'),
+        backgroundColor: AppTheme.success,
+      ));
+
+      if (roleState.isProvider) {
+        Navigator.pushReplacementNamed(context, '/provider/home');
+      } else {
+        Navigator.pushReplacementNamed(context, '/user/home');
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() { _errorMessage = _friendlyError(e.code); });
+    } catch (e) {
+      setState(() { _errorMessage = 'Signup failed. Please try again.'; });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _friendlyError(String code) {
+    switch (code) {
+      case 'email-already-in-use':   return 'An account with this email already exists.';
+      case 'invalid-email':          return 'Please enter a valid email address.';
+      case 'weak-password':          return 'Password must be at least 6 characters.';
+      case 'operation-not-allowed':  return 'Email sign-up is currently disabled.';
+      case 'network-request-failed': return 'No internet connection.';
+      default:                       return 'Signup failed ($code). Please try again.';
     }
   }
 
@@ -153,553 +158,206 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
         ),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Create Account',
-                  style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.5,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Fill in your details below to get started.',
-                  style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 14,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Create Account', style: TextStyle(color: AppTheme.textPrimary, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: -0.5), textAlign: TextAlign.center),
+              const SizedBox(height: 6),
+              const Text('Fill in your details below to get started.', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14), textAlign: TextAlign.center),
+              const SizedBox(height: 28),
 
-                // Register As Toggle Button
+              // Role toggle
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(color: AppTheme.userInputFill, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.userBorder, width: 0.5)),
+                child: Row(children: ['user', 'provider'].map((type) {
+                  final selected = _registerType == type;
+                  return Expanded(child: GestureDetector(
+                    onTap: () => setState(() => _registerType = type),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(color: selected ? AppTheme.userPrimary : Colors.transparent, borderRadius: BorderRadius.circular(12)),
+                      child: Text(
+                        type == 'user' ? 'Register as User' : 'Register as Provider',
+                        style: TextStyle(color: selected ? Colors.white : AppTheme.textSecondary, fontWeight: FontWeight.bold, fontSize: 13),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ));
+                }).toList()),
+              ),
+              const SizedBox(height: 24),
+
+              // Error banner
+              if (_errorMessage != null) ...[
                 Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.userInputFill,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppTheme.userBorder, width: 0.5),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _registerType = 'user'),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: _registerType == 'user' ? AppTheme.userPrimary : Colors.transparent,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'Register as User',
-                              style: TextStyle(
-                                color: _registerType == 'user' ? Colors.white : AppTheme.textSecondary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _registerType = 'provider'),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: _registerType == 'provider' ? AppTheme.userPrimary : Colors.transparent,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'Register as Provider',
-                              style: TextStyle(
-                                color: _registerType == 'provider' ? Colors.white : AppTheme.textSecondary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-
-                // Common Inputs
-                TextFormField(
-                  controller: _nameController,
-                  style: const TextStyle(color: AppTheme.textPrimary),
-                  decoration: InputDecoration(
-                    labelText: 'Full Name',
-                    hintText: 'Enter your full name',
-                    prefixIcon: const Icon(Icons.person_outline_rounded, color: AppTheme.textMuted),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.userInputFill,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your full name';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  style: const TextStyle(color: AppTheme.textPrimary),
-                  decoration: InputDecoration(
-                    labelText: 'Email Address',
-                    hintText: 'Enter your email',
-                    prefixIcon: const Icon(Icons.email_outlined, color: AppTheme.textMuted),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.userInputFill,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                      return 'Please enter a valid email address';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  style: const TextStyle(color: AppTheme.textPrimary),
-                  decoration: InputDecoration(
-                    labelText: 'Phone Number',
-                    hintText: 'e.g. +92 300 1234567',
-                    prefixIcon: const Icon(Icons.phone_outlined, color: AppTheme.textMuted),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.userInputFill,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your phone number';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _addressController,
-                  style: const TextStyle(color: AppTheme.textPrimary),
-                  decoration: InputDecoration(
-                    labelText: 'Address',
-                    hintText: _registerType == 'user' ? 'Enter your home address' : 'Enter shop or work address',
-                    prefixIcon: const Icon(Icons.location_on_outlined, color: AppTheme.textMuted),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.userInputFill,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your address';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  style: const TextStyle(color: AppTheme.textPrimary),
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    hintText: 'Enter password',
-                    prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppTheme.textMuted),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.userInputFill,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  obscureText: true,
-                  style: const TextStyle(color: AppTheme.textPrimary),
-                  decoration: InputDecoration(
-                    labelText: 'Confirm Password',
-                    hintText: 'Confirm password',
-                    prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppTheme.textMuted),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.userInputFill,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please confirm your password';
-                    }
-                    if (value != _passwordController.text) {
-                      return 'Passwords do not match';
-                    }
-                    return null;
-                  },
-                ),
-
-                // Dynamic Provider fields
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 350),
-                  child: _registerType == 'provider'
-                      ? _buildProviderFields()
-                      : const SizedBox.shrink(),
-                ),
-
-                const SizedBox(height: 32),
-
-                // Register Button
-                ElevatedButton(
-                  onPressed: _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.userPrimary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Create Account',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Already have an account? Sign in
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      "Already have an account? ",
-                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.pushNamed(context, '/login'),
-                      child: const Text(
-                        'Sign In',
-                        style: TextStyle(
-                          color: AppTheme.userPrimary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: AppTheme.danger.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppTheme.danger.withValues(alpha: 0.3))),
+                  child: Row(children: [
+                    const Icon(Icons.error_outline, color: AppTheme.danger, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_errorMessage!, style: const TextStyle(color: AppTheme.danger, fontSize: 13))),
+                  ]),
                 ),
                 const SizedBox(height: 16),
               ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildProviderFields() {
-    return Column(
-      key: const ValueKey('provider_fields'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 24),
-        const Divider(),
-        const SizedBox(height: 16),
-        const Text(
-          'Professional Details',
-          style: TextStyle(
-            color: AppTheme.textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 16),
+              _field(_nameController,  'Full Name',     Icons.person_outline_rounded,   'Enter your full name', validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter your name' : null),
+              const SizedBox(height: 14),
+              _field(_emailController, 'Email Address', Icons.email_outlined,            'Enter your email',     keyboardType: TextInputType.emailAddress,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Please enter your email';
+                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) return 'Invalid email';
+                  return null;
+                }),
+              const SizedBox(height: 14),
+              _field(_phoneController, 'Phone Number',  Icons.phone_outlined,           '+92 300 1234567', keyboardType: TextInputType.phone, validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter your phone' : null),
+              const SizedBox(height: 14),
+              _field(_addressController, 'Address',     Icons.location_on_outlined,      'Your home or work address', validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter your address' : null),
+              const SizedBox(height: 14),
 
-        // Specialty Dropdown
-        DropdownButtonFormField<String>(
-          initialValue: _selectedSpecialty,
-          style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
-          decoration: InputDecoration(
-            labelText: 'Specialty Domain',
-            hintText: 'Select your specialty',
-            prefixIcon: const Icon(Icons.work_outline_rounded, color: AppTheme.textMuted),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide.none,
-            ),
-            filled: true,
-            fillColor: AppTheme.userInputFill,
-          ),
-          items: _specialties.map((specialty) {
-            return DropdownMenuItem<String>(
-              value: specialty,
-              child: Text(specialty),
-            );
-          }).toList(),
-          onChanged: (value) => setState(() => _selectedSpecialty = value),
-          validator: (value) {
-            if (value == null) {
-              return 'Please select your specialty';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-
-        // Hourly Rate Input
-        TextFormField(
-          controller: _hourlyRateController,
-          keyboardType: TextInputType.number,
-          style: const TextStyle(color: AppTheme.textPrimary),
-          decoration: InputDecoration(
-            labelText: 'Hourly Rate (Rs.)',
-            hintText: 'e.g. 500',
-            prefixIcon: const Icon(Icons.payments_outlined, color: AppTheme.textMuted),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide.none,
-            ),
-            filled: true,
-            fillColor: AppTheme.userInputFill,
-          ),
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Please enter your hourly rate';
-            }
-            if (double.tryParse(value) == null) {
-              return 'Please enter a valid amount';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 24),
-
-        // Experience Slider
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Years of Experience',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-            Text(
-              '${_yearsOfExperience.toInt()} ${_yearsOfExperience == 1 ? "Year" : "Years"}',
-              style: const TextStyle(color: AppTheme.userPrimary, fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        Slider(
-          value: _yearsOfExperience,
-          min: 1.0,
-          max: 20.0,
-          divisions: 19,
-          activeColor: AppTheme.userPrimary,
-          inactiveColor: AppTheme.userBorder,
-          label: '${_yearsOfExperience.toInt()} Years',
-          onChanged: (value) => setState(() => _yearsOfExperience = value),
-        ),
-        const SizedBox(height: 16),
-
-        // Custom File Upload - Certification
-        const Text(
-          'Professional Certification',
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 8),
-        _buildFileUploader(
-          fileName: _certFileName,
-          isUploading: _isUploadingCert,
-          label: 'Upload Certificate (PDF)',
-          type: 'cert',
-        ),
-        const SizedBox(height: 16),
-
-        // Custom File Upload - CV
-        const Text(
-          'Curriculum Vitae (CV)',
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 8),
-        _buildFileUploader(
-          fileName: _cvFileName,
-          isUploading: _isUploadingCv,
-          label: 'Upload CV (PDF)',
-          type: 'cv',
-        ),
-        const SizedBox(height: 16),
-
-        // Multi-line Bio
-        TextFormField(
-          controller: _bioController,
-          maxLines: 3,
-          style: const TextStyle(color: AppTheme.textPrimary),
-          decoration: InputDecoration(
-            labelText: 'Short Profile Bio',
-            hintText: 'Briefly describe your experience and work ethic...',
-            alignLabelWithHint: true,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide.none,
-            ),
-            filled: true,
-            fillColor: AppTheme.userInputFill,
-          ),
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Please enter a short profile description';
-            }
-            return null;
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFileUploader({
-    required String? fileName,
-    required bool isUploading,
-    required String label,
-    required String type,
-  }) {
-    if (isUploading) {
-      return Container(
-        height: 64,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: AppTheme.userInputFill,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.userBorder, width: 0.5),
-        ),
-        child: const Row(
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.userPrimary),
-            ),
-            SizedBox(width: 16),
-            Text(
-              'Uploading file...',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (fileName != null) {
-      return Container(
-        height: 64,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: AppTheme.success.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.success.withValues(alpha: 0.3), width: 0.5),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.description_rounded, color: AppTheme.success),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                fileName,
-                style: const TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
+              // Password
+              TextFormField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                style: const TextStyle(color: AppTheme.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Password', hintText: 'At least 6 characters',
+                  prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.textMuted),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: AppTheme.textMuted),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                  filled: true, fillColor: AppTheme.userInputFill,
                 ),
-                overflow: TextOverflow.ellipsis,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Please enter a password';
+                  if (v.length < 6) return 'At least 6 characters';
+                  return null;
+                },
               ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.close_rounded, color: AppTheme.danger, size: 20),
-              onPressed: () => _removeFile(type),
-            ),
-          ],
-        ),
-      );
-    }
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _confirmPasswordController,
+                obscureText: _obscureConfirmPassword,
+                style: const TextStyle(color: AppTheme.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Confirm Password', hintText: 'Re-enter password',
+                  prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.textMuted),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: AppTheme.textMuted),
+                    onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                  filled: true, fillColor: AppTheme.userInputFill,
+                ),
+                validator: (v) => v != _passwordController.text ? 'Passwords do not match' : null,
+              ),
 
-    return GestureDetector(
-      onTap: () => _uploadFile(type),
-      child: Container(
-        height: 64,
-        decoration: BoxDecoration(
-          color: AppTheme.userInputFill,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.userBorder, width: 1),
-        ),
-        alignment: Alignment.center,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.upload_file_rounded, color: AppTheme.userPrimary),
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppTheme.userPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
+              // Provider extra fields
+              if (_registerType == 'provider') ...[
+                const SizedBox(height: 24),
+                const Divider(color: AppTheme.userBorder),
+                const SizedBox(height: 16),
+                const Text('Professional Details', style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+
+                DropdownButtonFormField<String>(
+                  value: _selectedSpecialty,
+                  style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
+                  decoration: InputDecoration(
+                    labelText: 'Specialty', prefixIcon: const Icon(Icons.work_outline_rounded, color: AppTheme.textMuted),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                    filled: true, fillColor: AppTheme.userInputFill,
+                  ),
+                  items: _specialties.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                  onChanged: (v) => setState(() => _selectedSpecialty = v),
+                  validator: (v) => v == null ? 'Please select your specialty' : null,
+                ),
+                const SizedBox(height: 14),
+                _field(_hourlyRateController, 'Hourly Rate (Rs.)', Icons.payments_outlined, 'e.g. 1500', keyboardType: TextInputType.number,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Please enter your rate';
+                    if (double.tryParse(v) == null) return 'Enter a valid number';
+                    return null;
+                  }),
+                const SizedBox(height: 20),
+
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  const Text('Years of Experience', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
+                  Text('${_yearsOfExperience.toInt()} yrs', style: const TextStyle(color: AppTheme.userPrimary, fontSize: 14, fontWeight: FontWeight.bold)),
+                ]),
+                Slider(value: _yearsOfExperience, min: 1, max: 20, divisions: 19, activeColor: AppTheme.userPrimary, inactiveColor: AppTheme.userBorder, onChanged: (v) => setState(() => _yearsOfExperience = v)),
+                const SizedBox(height: 14),
+
+                TextFormField(
+                  controller: _bioController,
+                  maxLines: 3,
+                  style: const TextStyle(color: AppTheme.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'Profile Bio', hintText: 'Briefly describe your experience...',
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                    filled: true, fillColor: AppTheme.userInputFill,
+                  ),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Please write a short bio' : null,
+                ),
+              ],
+              const SizedBox(height: 32),
+
+              SizedBox(
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.userPrimary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Create Account', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Text('Already have an account? ', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/login'),
+                  child: const Text('Sign In', style: TextStyle(color: AppTheme.userPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+                ),
+              ]),
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _field(TextEditingController ctrl, String label, IconData icon, String hint, {
+    TextInputType keyboardType = TextInputType.text,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: ctrl,
+      keyboardType: keyboardType,
+      style: const TextStyle(color: AppTheme.textPrimary),
+      decoration: InputDecoration(
+        labelText: label, hintText: hint,
+        prefixIcon: Icon(icon, color: AppTheme.textMuted),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        filled: true, fillColor: AppTheme.userInputFill,
+      ),
+      validator: validator,
     );
   }
 }

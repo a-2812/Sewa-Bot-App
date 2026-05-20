@@ -1,10 +1,12 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
 import 'package:provider/provider.dart';
 
+import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'providers/app_state.dart';
+import 'providers/auth_state.dart';
 import 'providers/role_state.dart';
 import 'providers/trace_state.dart';
 import 'providers/voice_state.dart';
@@ -42,12 +44,12 @@ import 'screens/provider/provider_profile_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock to portrait mode
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
+  // Initialize Firebase
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Set system UI overlay style
+  // Lock to portrait mode
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
@@ -55,17 +57,17 @@ void main() async {
     systemNavigationBarIconBrightness: Brightness.dark,
   ));
 
-
-  runApp(const KhidmatAIApp());
+  runApp(const SewaBotApp());
 }
 
-class KhidmatAIApp extends StatelessWidget {
-  const KhidmatAIApp({super.key});
+class SewaBotApp extends StatelessWidget {
+  const SewaBotApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => AuthState()),
         ChangeNotifierProvider(create: (_) => RoleState()),
         ChangeNotifierProvider(create: (_) => AppState()),
         ChangeNotifierProvider(create: (_) => TraceState()),
@@ -80,35 +82,35 @@ class KhidmatAIApp extends StatelessWidget {
             theme: roleState.hasRole ? roleState.theme : AppTheme.userTheme,
             initialRoute: '/splash',
             routes: {
-              // ─── Shared Routes ────────────────────────
-              '/dev-index': (context) => const DevIndexScreen(),
+              // ─── Shared Routes ─────────────────────────────
+              '/dev-index':  (context) => const DevIndexScreen(),
               '/agent-flow': (context) => AgentFlowScreen(),
-              '/splash': (context) => const SplashScreen(),
-              '/trace': (context) => const TraceViewerScreen(),
+              '/splash':     (context) => const SplashScreen(),
+              '/trace':      (context) => const TraceViewerScreen(),
 
-              // ─── Auth Routes ──────────────────────────
-              '/login': (context) => const LoginScreen(),
-              '/signup': (context) => const SignupScreen(),
+              // ─── Auth Routes ───────────────────────────────
+              '/login':           (context) => const LoginScreen(),
+              '/signup':          (context) => const SignupScreen(),
               '/forgot-password': (context) => const ForgotPasswordScreen(),
-              '/reset-password': (context) => const ResetPasswordScreen(),
-              '/verify-email': (context) => const EmailVerificationScreen(),
+              '/reset-password':  (context) => const ResetPasswordScreen(),
+              '/verify-email':    (context) => const EmailVerificationScreen(),
 
-              // ─── User Routes ──────────────────────────
-              '/user/home': (context) => const HomeScreen(),
-              '/user/chat': (context) => const ChatScreen(),
+              // ─── User Routes ───────────────────────────────
+              '/user/home':      (context) => const HomeScreen(),
+              '/user/chat':      (context) => const ChatScreen(),
               '/user/providers': (context) => const ProvidersScreen(),
-              '/user/quote': (context) => const QuoteScreen(),
-              '/user/booking': (context) => const BookingScreen(),
-              '/user/status': (context) => const StatusScreen(),
-              '/user/dispute': (context) => const DisputeScreen(),
+              '/user/quote':     (context) => const QuoteScreen(),
+              '/user/booking':   (context) => const BookingScreen(),
+              '/user/status':    (context) => const StatusScreen(),
+              '/user/dispute':   (context) => const DisputeScreen(),
 
-              // ─── Provider Routes ──────────────────────
-              '/provider/home': (context) => const ProviderHomeScreen(),
-              '/provider/jobs': (context) => const IncomingJobsScreen(),
-              '/provider/job': (context) => const ActiveJobScreen(),
-              '/provider/active': (context) => const ActiveJobScreen(),
+              // ─── Provider Routes ───────────────────────────
+              '/provider/home':     (context) => const ProviderHomeScreen(),
+              '/provider/jobs':     (context) => const IncomingJobsScreen(),
+              '/provider/job':      (context) => const ActiveJobScreen(),
+              '/provider/active':   (context) => const ActiveJobScreen(),
               '/provider/earnings': (context) => const EarningsScreen(),
-              '/provider/profile': (context) => const ProviderProfileScreen(),
+              '/provider/profile':  (context) => const ProviderProfileScreen(),
             },
           );
         },
