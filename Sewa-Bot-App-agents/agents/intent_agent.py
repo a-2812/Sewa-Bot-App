@@ -1,7 +1,7 @@
 import json
 import time
 import re
-from google import genai
+import google.generativeai as genai
 from config import GEMINI_API_KEY
 
 genai.configure(api_key=GEMINI_API_KEY)
