@@ -505,6 +505,71 @@ def list_providers(
     return {"total": len(providers), "providers": providers}
 
 
+@app.get("/providers/{provider_id}", summary="Get Single Provider", tags=["Providers"])
+def get_provider(provider_id: str) -> dict[str, Any]:
+    """Return the full profile for a single provider by ID (e.g. 'p001')."""
+    providers = _load_providers()
+    provider = next((p for p in providers if p["id"] == provider_id), None)
+    if provider is None:
+        raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not found.")
+    return provider
+
+
+@app.get("/providers/{provider_id}/jobs", summary="Get Jobs for a Provider", tags=["Providers"])
+def get_provider_jobs(
+    provider_id: str,
+    status: Optional[str] = Query(None, description="Filter: pending, accepted, completed"),
+) -> dict[str, Any]:
+    """Return all jobs dispatched to a specific provider (from Firestore 'jobs' collection)."""
+    jobs: list[dict[str, Any]] = []
+    try:
+        db = get_firestore_client()
+        if db:
+            query = db.collection("jobs").where("provider_id", "==", provider_id)
+            if status:
+                query = query.where("status", "==", status)
+            docs = query.stream()
+            jobs = [doc.to_dict() for doc in docs]
+        else:
+            # Fallback: scan bookings for this provider
+            bookings = _load_bookings()
+            for b in bookings.values():
+                if b.get("provider", {}).get("id") == provider_id:
+                    if not status or b.get("status") == status:
+                        jobs.append(b)
+    except Exception as e:
+        print(f"[backend] get_provider_jobs error: {e}")
+        bookings = _load_bookings()
+        for b in bookings.values():
+            if b.get("provider", {}).get("id") == provider_id:
+                if not status or b.get("status") == status:
+                    jobs.append(b)
+
+    # Sort newest first
+    jobs.sort(key=lambda j: j.get("created_at", ""), reverse=True)
+    return {"provider_id": provider_id, "total": len(jobs), "jobs": jobs}
+
+
+class ProviderStatusRequest(BaseModel):
+    is_online: bool
+
+
+@app.put("/providers/{provider_id}/status", summary="Update Provider Online Status", tags=["Providers"])
+def update_provider_status(provider_id: str, body: ProviderStatusRequest) -> dict[str, Any]:
+    """Toggle a provider's online/offline status in Firestore."""
+    try:
+        db = get_firestore_client()
+        if db:
+            db.collection("providers").document(provider_id).set(
+                {"is_online": body.is_online, "status_updated_at": datetime.now(timezone.utc).isoformat()},
+                merge=True,
+            )
+            return {"provider_id": provider_id, "is_online": body.is_online, "status": "updated"}
+    except Exception as e:
+        print(f"[backend] update_provider_status error: {e}")
+    return {"provider_id": provider_id, "is_online": body.is_online, "status": "local_only"}
+
+
 @app.post("/search", summary="Search Providers by Service + Location", tags=["Providers"])
 def search_providers(body: SearchRequest) -> dict[str, Any]:
     """Find providers within *radius_km* of the user offering the requested service.
@@ -651,6 +716,35 @@ def create_booking(body: BookingRequest) -> BookingResponse:
 
     _save_booking(booking_id, record)
 
+    # ── Dispatch job to provider ──────────────────────────────────────────────
+    # Write to 'jobs' collection so the provider dashboard can poll for new work.
+    job_record: dict[str, Any] = {
+        "job_id":       booking_id,
+        "provider_id":  provider["id"],
+        "service_type": body.service_type,
+        "user_name":    body.user_name,
+        "user_phone":   body.user_phone,
+        "location":     body.location,
+        "slot":         body.time_slot,
+        "quoted_price": provider.get("price_pkr", provider.get("price", 0)),
+        "notes":        body.notes or "",
+        "urgency":      "normal",
+        "job_complexity": "simple",
+        "status":       "pending",
+        "ai_match_score": 90,
+        "ai_reason":    "Booked directly by user via SewaBot.",
+        "time_to_accept": 900,
+        "created_at":   created_at,
+    }
+    try:
+        db = get_firestore_client()
+        if db:
+            db.collection("jobs").document(booking_id).set(job_record)
+            print(f"[backend] Job {booking_id} dispatched to provider {provider['id']}")
+    except Exception as e:
+        print(f"[backend] Job dispatch to Firestore failed: {e}")
+    # ─────────────────────────────────────────────────────────────────────────
+
     price_pkr = provider.get("price_pkr", provider.get("price", 0))
     receipt_text = (
         f"--- SewaBot Booking Receipt ---\n"
@@ -701,6 +795,37 @@ def list_bookings(
     if status:
         bookings = [b for b in bookings if b["status"].lower() == status.lower()]
     return {"total": len(bookings), "bookings": bookings}
+
+
+# ---------------------------------------------------------------------------
+# Jobs Status Update Route
+# ---------------------------------------------------------------------------
+
+class JobStatusRequest(BaseModel):
+    status: str  # pending | accepted | in_progress | completed | declined
+
+
+@app.put("/jobs/{job_id}/status", summary="Update Job Status", tags=["Providers"])
+def update_job_status(job_id: str, body: JobStatusRequest) -> dict[str, Any]:
+    """Update the status of a dispatched job (accepted/declined/completed)."""
+    valid = {"pending", "accepted", "in_progress", "completed", "declined"}
+    if body.status not in valid:
+        raise HTTPException(status_code=422, detail=f"status must be one of {valid}")
+    updated_at = datetime.now(timezone.utc).isoformat()
+    try:
+        db = get_firestore_client()
+        if db:
+            db.collection("jobs").document(job_id).set(
+                {"status": body.status, "updated_at": updated_at}, merge=True
+            )
+            # Also update the booking record status
+            db.collection("bookings").document(job_id).set(
+                {"status": body.status, "updated_at": updated_at}, merge=True
+            )
+            return {"job_id": job_id, "status": body.status, "updated_at": updated_at}
+    except Exception as e:
+        print(f"[backend] update_job_status error: {e}")
+    return {"job_id": job_id, "status": body.status, "updated_at": updated_at, "note": "local_only"}
 
 
 # ---------------------------------------------------------------------------

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/provider_state.dart';
+import '../../providers/role_state.dart';
 import '../../config/mock_provider_data.dart';
 import 'incoming_jobs_screen.dart';
 import 'earnings_screen.dart';
@@ -23,8 +24,21 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ps = context.read<ProviderState>();
+      final roleState = context.read<RoleState>();
+
+      // Always load mock data as baseline (shows immediately)
       ps.loadEarnings(MockProviderData.earningsMock);
-      ps.setIncomingJobs(MockProviderData.incomingJobsMock.map((j) => Map<String, dynamic>.from(j)).toList());
+      ps.setIncomingJobs(
+        MockProviderData.incomingJobsMock
+            .map((j) => Map<String, dynamic>.from(j))
+            .toList(),
+      );
+
+      // If we have a real provider identity, fetch real jobs from backend
+      final providerId = roleState.providerId;
+      if (providerId != null && providerId.isNotEmpty) {
+        ps.loadRealJobs(providerId);
+      }
     });
   }
 
@@ -69,14 +83,22 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
                       children: [
                         // Top row: greeting + online toggle
                         Row(children: [
-                          Expanded(child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Hello, Ahmed! 👋', style: TextStyle(color: Colors.white, fontSize: 14)),
-                              const SizedBox(height: 2),
-                              const Text('Ahmed AC Services', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600)),
-                            ],
-                          )),
+                          Expanded(child: Consumer<RoleState>(
+                    builder: (context, rs, _) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hello, ${rs.displayName.split(' ').first}!',
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          rs.providerName ?? rs.displayName,
+                          style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  )),
                           GestureDetector(
                             onTap: () {
                               ps.setOnline(!ps.isOnline);
@@ -106,7 +128,7 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
                           const SizedBox(width: 8),
                           _statCard('${ps.totalJobsToday}', "Today's jobs"),
                           const SizedBox(width: 8),
-                          _statCard('${ps.rating}⭐', 'Rating'),
+                          _statCard(ps.rating > 0 ? '${ps.rating}' : '—', 'Rating'),
                         ]),
                       ],
                     ),
@@ -151,7 +173,7 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
                     _actionCard(Icons.work_outline, AppTheme.providerPrimary, 'Incoming Jobs', '${ps.incomingJobs.length} pending', () => _onNav(1)),
                     _actionCard(Icons.navigation_outlined, AppTheme.success, 'Active Job', ps.currentJob != null ? '1 active' : 'None', () => Navigator.pushNamed(context, '/provider/active')),
                     _actionCard(Icons.bar_chart, AppTheme.warning, 'Earnings', 'Rs. ${ps.weekEarnings.toInt()} this week', () => _onNav(2)),
-                    _actionCard(Icons.person_outline, const Color(0xFFA78BFA), 'My Profile', 'Rating: ${ps.rating}⭐', () => _onNav(3)),
+                    _actionCard(Icons.person_outline, const Color(0xFFA78BFA), 'My Profile', ps.rating > 0 ? 'Rating: ${ps.rating}' : 'View profile', () => _onNav(3)),
                   ]),
                 ),
               ),

@@ -25,33 +25,28 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _login() async {
-    if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Login successful! Welcome back.'),
-          backgroundColor: AppTheme.success,
-        ),
-      );
+    if (!_formKey.currentState!.validate()) return;
 
-      final roleState = context.read<RoleState>();
-      // Try to load a previously saved role, if none exists determine from email or default to user
-      UserRole role = await roleState.loadSavedRole();
-      if (role == UserRole.none) {
-        if (_emailController.text.toLowerCase().contains('provider')) {
-          role = UserRole.provider;
-        } else {
-          role = UserRole.user;
-        }
-        await roleState.setRole(role);
-      }
+    final email = _emailController.text.trim().toLowerCase();
+    final role  = email.contains('provider') ? UserRole.provider : UserRole.user;
+    final roleState = context.read<RoleState>();
 
-      if (mounted) {
-        if (role == UserRole.provider) {
-          Navigator.pushReplacementNamed(context, '/provider/home');
-        } else {
-          Navigator.pushReplacementNamed(context, '/user/home');
-        }
-      }
+    // Persist email + resolve provider identity (async, fires in background)
+    await roleState.login(role: role, email: email);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Login successful! Welcome back.'),
+        backgroundColor: AppTheme.success,
+      ),
+    );
+
+    if (role == UserRole.provider) {
+      Navigator.pushReplacementNamed(context, '/provider/home');
+    } else {
+      Navigator.pushReplacementNamed(context, '/user/home');
     }
   }
 

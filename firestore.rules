@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Providers ────────────────────────────────────────────────────────────
+    // Public read (anyone can see provider listings).
+    // Write only via backend service account (Firebase Admin SDK).
+    match /providers/{providerId} {
+      allow read: if true;
+      allow write: if false; // backend-only via Admin SDK
+    }
+
+    // ── Bookings ─────────────────────────────────────────────────────────────
+    // Public read/write for now (backend validates all inputs).
+    // In production, restrict to: request.auth != null
+    match /bookings/{bookingId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Jobs (provider job dispatch) ─────────────────────────────────────────
+    match /jobs/{jobId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Disputes ─────────────────────────────────────────────────────────────
+    match /disputes/{disputeId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if false; // immutable after creation
+    }
+
+    // ── Users ────────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // ── Agent Logs ───────────────────────────────────────────────────────────
+    match /agent_logs/{logId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ── Deny everything else ─────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

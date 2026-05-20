@@ -26,10 +26,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: 'Kamran Khan');
-    _emailController = TextEditingController(text: 'kamran.khan@example.com');
-    _phoneController = TextEditingController(text: '+92 300 9876543');
-    _addressController = TextEditingController(text: 'G-13/1, Street 4, Islamabad');
+    final roleState = context.read<RoleState>();
+    _nameController    = TextEditingController(text: roleState.displayName);
+    _emailController   = TextEditingController(text: roleState.userEmail);
+    _phoneController   = TextEditingController(text: '+92 300 0000000');
+    _addressController = TextEditingController(text: '');
   }
 
   @override
