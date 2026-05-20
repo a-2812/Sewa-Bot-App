@@ -1,16 +1,5 @@
-## SewaBot — Render Deployment Configuration
-## ============================================
-## Two web services:
-##   sewabot-backend  (FastAPI backend, port $PORT)
-##   sewabot-agents   (Python agents API, port $PORT)
-##
-## After deploying:
-##  1. Set FIREBASE_CREDENTIALS_JSON in each service's Environment tab
-##  2. Set GEMINI_API_KEY in sewabot-agents Environment tab
-##  3. Flutter: build with --dart-define using the Render HTTPS URLs
-
 services:
-  # ── SewaBot Backend API ───────────────────────────────────────────────────
+  # ── SewaBot Backend API (port 8000 → $PORT on Render) ────────────────────
   - type: web
     name: sewabot-backend
     runtime: python
@@ -18,21 +7,16 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     plan: free
-
+    healthCheckPath: /
     envVars:
-      # Render injects PORT automatically — do not set it here
+      - key: PYTHON_VERSION
+        value: 3.11.0
       - key: FIREBASE_CREDENTIALS_JSON
-        sync: false          # Set this secret in Render dashboard
+        sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
-      - key: GOOGLE_APPLICATION_CREDENTIALS
-        value: ""            # Leave blank; use FIREBASE_CREDENTIALS_JSON instead
-      - key: PYTHON_VERSION
-        value: "3.11.0"
 
-    healthCheckPath: /
-
-  # ── SewaBot Agents API ────────────────────────────────────────────────────
+  # ── SewaBot Agents API (port 8001 → $PORT on Render) ─────────────────────
   - type: web
     name: sewabot-agents
     runtime: python
@@ -40,17 +24,13 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main_api:app --host 0.0.0.0 --port $PORT
     plan: free
-
+    healthCheckPath: /
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
       - key: GEMINI_API_KEY
-        sync: false          # Set this secret in Render dashboard
+        sync: false
       - key: BACKEND_BASE_URL
-        fromService:
-          type: web
-          name: sewabot-backend
-          property: host
-          envVarKey: BACKEND_BASE_URL
-        # Fallback: set manually if fromService resolution fails
         value: https://sewabot-backend.onrender.com
       - key: FIREBASE_CREDENTIALS_JSON
         sync: false
@@ -58,7 +38,3 @@ services:
         sync: false
       - key: TEST_MODE
         value: "false"
-      - key: PYTHON_VERSION
-        value: "3.11.0"
-
-    healthCheckPath: /
