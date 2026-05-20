@@ -15,5 +15,65 @@
     "agent_name": "Test Agent",
     "action": "Started verification",
     "reasoning": ""
+  },
+  {
+    "session_id": "sess_20260520_82498ab7",
+    "created_at": "2026-05-20T11:12:17.678321",
+    "total_agents_run": 3,
+    "flow": [
+      {
+        "step": 1,
+        "agent": "IntentAgent",
+        "timestamp": "2026-05-20T11:12:17.678387",
+        "input": "Mujhe kal subah G-13 mein AC technician chahiye",
+        "reasoning": "Extracted service_type=AC Technician, location=G-13. Time preference=tomorrow_morning. Confidence 95%. Extraction successful — all key fields resolved.",
+        "output": {
+          "service_type": "AC Technician",
+          "location": "G-13",
+          "preferred_time": "tomorrow_morning",
+          "urgency": "normal",
+          "budget_sensitivity": "medium",
+          "job_complexity": "simple",
+          "language_detected": "roman_urdu",
+          "confidence_score": 0.95,
+          "clarification_needed": false,
+          "clarification_question": null,
+          "raw_input": "Mujhe kal subah G-13 mein AC technician chahiye"
+        },
+        "status": "success",
+        "duration_ms": 0
+      },
+      {
+        "step": 2,
+        "agent": "DiscoveryAgent",
+        "timestamp": "2026-05-20T11:12:19.739135",
+        "input": {
+          "service_type": "AC Technician",
+          "location": "G-13"
+        },
+        "reasoning": "Searched for 'AC Technician' (normalized from 'AC Technician'). Source: backend_api. Resolved 'G-13' → coords {'lat': 33.6844, 'lng': 73.0479}. Found 3 providers within 50km radius.",
+        "output": {
+          "total_found": 3
+        },
+        "status": "success",
+        "duration_ms": 2059
+      },
+      {
+        "step": 3,
+        "agent": "RankingAgent",
+        "timestamp": "2026-05-20T11:12:19.739232",
+        "input": {
+          "provider_count": 3,
+          "time_preference": "tomorrow_morning"
+        },
+        "reasoning": "Scored 3 providers using weighted formula: distance(40%) + rating(35%) + availability(25%). Usman Ali scored 87.7/100: distance_score=27.8 (3.05km away), rating_score=32.9 (4.7 stars), availability_score=25.0. Selected as top pick.",
+        "output": {
+          "top_pick": "Usman Ali"
+        },
+        "status": "success",
+        "duration_ms": 0
+      }
+    ],
+    "timestamp": "2026-05-20T06:12:21.790117+00:00"
   }
 ]
