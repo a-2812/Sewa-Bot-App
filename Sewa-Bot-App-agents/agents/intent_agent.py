@@ -95,6 +95,22 @@ SERVICE_KEYWORDS = {
     "lakri":           "Carpenter",
 }
 
+PAKISTAN_CITY_NAMES = [
+    "islamabad", "lahore", "karachi", "rawalpindi", "peshawar",
+    "multan", "faisalabad", "quetta", "sialkot", "gujranwala",
+    "hyderabad", "abbottabad", "mardan", "gujrat", "skardu",
+    "bahawalpur", "sargodha", "sukkur", "larkana", "sheikhupura",
+    "rahim yar khan", "jhang", "sahiwal", "okara", "wah cantt",
+    "dera ghazi khan", "mirpur", "mansehra", "swat", "mingora",
+    "gilgit", "hunza", "muzaffarabad", "nawabshah", "kasur",
+]
+
+LOCATION_STOP_WORDS = {
+    "me", "my", "i", "need", "want", "service", "services", "repair",
+    "please", "plz", "hai", "hain", "chahiye", "karwana", "karwana hai",
+    "mein", "main", "me", "ki", "ka", "ke", "ko", "koi", "aik",
+}
+
 
 def _is_empty(val) -> bool:
     """Check if a value is effectively empty/null/unknown."""
@@ -138,13 +154,8 @@ def _extract_location_from_text(text: str):
         r"\b([gfie]-\d{1,2}|dha|gulberg|bahria\s*town|cantt|model\s*town|johar\s*town|blue\s*area|saddar|clifton|defence|sector\s*\d+)\b",
         t_norm, flags=re.IGNORECASE
     )
-    cities = [
-        "islamabad", "lahore", "karachi", "rawalpindi", "peshawar",
-        "multan", "faisalabad", "quetta", "sialkot", "gujranwala",
-        "hyderabad", "abbottabad", "mardan",
-    ]
     city_found = None
-    for c in cities:
+    for c in PAKISTAN_CITY_NAMES:
         if re.search(r"\b" + re.escape(c) + r"\b", t_norm):
             city_found = c.title()
             break
@@ -156,6 +167,26 @@ def _extract_location_from_text(text: str):
         return city_found
     if area_match:
         return area_match.group(0).upper()
+
+    # Last-resort guarded phrase extraction for cities not in the whitelist.
+    phrase_patterns = [
+        r"\b(?:in|near|around|at)\s+([a-z][a-z\s-]{1,35})\b",
+        r"\b([a-z][a-z\s-]{1,35})\s+(?:mein|main|me)\b",
+    ]
+    for pattern in phrase_patterns:
+        match = re.search(pattern, t_norm, flags=re.IGNORECASE)
+        if not match:
+            continue
+        candidate = re.sub(r"[^a-z\s-]", " ", match.group(1).lower())
+        words = [
+            w for w in candidate.split()
+            if w not in LOCATION_STOP_WORDS and w not in SERVICE_KEYWORDS
+        ]
+        if not words:
+            continue
+        location = " ".join(words[-3:]).strip(" -")
+        if len(location) >= 3:
+            return location.title()
     return None
 
 

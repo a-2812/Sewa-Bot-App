@@ -144,6 +144,27 @@ def test_chat_followup_merges_previous_service_when_gemini_fails(monkeypatch):
     assert not third["intent"].get("clarification_needed")
 
 
+@pytest.mark.parametrize("city", ["Gujrat", "Skardu"])
+def test_intent_accepts_known_pakistan_cities_when_gemini_fails(monkeypatch, city):
+    class _FailingModel:
+        def generate_content(self, prompt):
+            raise RuntimeError("simulated Gemini outage")
+
+    monkeypatch.setattr(intent_agent, "model", _FailingModel())
+
+    intent, _, _ = intent_agent.run(f"I need ac repair services in {city}")
+
+    assert intent["service_type"] == "AC Technician"
+    assert intent["location"] == city
+    assert not intent.get("clarification_needed")
+
+
+def test_discovery_does_not_return_random_providers_for_unsupported_city():
+    output, _ = discovery_agent.run("AC Technician", "Skardu")
+    assert output["total_found"] == 0
+    assert output["providers"] == []
+
+
 # ─── 2. Discovery Agent ───────────────────────────────────────────────────────
 
 def test_discovery_finds_ac_providers():

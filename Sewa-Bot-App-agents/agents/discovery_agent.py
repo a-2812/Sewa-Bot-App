@@ -81,6 +81,8 @@ LOCATION_COORDS = {
     "g-8":  {"lat": 33.6990, "lng": 73.0562},
     "g-6":  {"lat": 33.7262, "lng": 73.0698},
     "islamabad": {"lat": 33.6844, "lng": 73.0479},
+    "gujrat": {"lat": 32.5731, "lng": 74.1005},
+    "skardu": {"lat": 35.2971, "lng": 75.6333},
     "blue area": {"lat": 33.7115, "lng": 73.0600},
     "f-7 markaz": {"lat": 33.7215, "lng": 73.0576},
     "dha lahore": {"lat": 31.4817, "lng": 74.4020},
@@ -173,6 +175,8 @@ def run(service_type: str, location: str, radius_km: float = 50) -> tuple[dict, 
     if not providers and source == "local":
         all_providers = _load_providers_local()
         matched = [p for p in all_providers if p.get("service_type") == canonical_service]
+        if location and not coords:
+            matched = []
         for p in matched:
             loc = p.get("location", {})
             if coords:
@@ -181,7 +185,7 @@ def run(service_type: str, location: str, radius_km: float = 50) -> tuple[dict, 
             else:
                 p["distance_km"] = 999
         nearby = [p for p in matched if p["distance_km"] <= radius_km]
-        if not nearby and matched:
+        if not nearby and matched and not location:
             nearby = sorted(matched, key=lambda x: x["distance_km"])[:5]
         nearby.sort(key=lambda x: x["distance_km"])
         providers = nearby
