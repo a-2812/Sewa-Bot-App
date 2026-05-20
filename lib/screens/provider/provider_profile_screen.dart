@@ -138,6 +138,62 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
     );
   }
 
+  void _showPhotoOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.providerInputFill,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.providerBorder, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            const Text('Update Profile Photo', style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 20),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+              _photoOption(Icons.camera_alt_outlined, 'Camera', () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Camera access requires app permissions. Feature coming soon.'), backgroundColor: AppTheme.warning),
+                );
+              }),
+              _photoOption(Icons.photo_library_outlined, 'Gallery', () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Photo gallery requires image_picker plugin. Feature coming soon.'), backgroundColor: AppTheme.warning),
+                );
+              }),
+              _photoOption(Icons.delete_outline, 'Remove', () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Profile photo removed.'), backgroundColor: AppTheme.success),
+                );
+              }),
+            ]),
+            const SizedBox(height: 8),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _photoOption(IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(children: [
+        Container(
+          width: 64, height: 64,
+          decoration: BoxDecoration(color: AppTheme.providerBorder, shape: BoxShape.circle),
+          child: Icon(icon, color: AppTheme.textPrimary, size: 28),
+        ),
+        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+      ]),
+    );
+  }
+
+
   @override
   void initState() {
     super.initState();
@@ -179,18 +235,26 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                 alignment: Alignment.bottomCenter,
                 padding: const EdgeInsets.only(bottom: 20),
                 child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  Stack(children: [
-                    CircleAvatar(
-                      radius: 40,
-                      backgroundColor: AppTheme.providerInputFill,
-                      child: const Icon(Icons.person, color: Colors.white, size: 40),
-                    ),
-                    Positioned(bottom: 0, right: 0, child: Container(
-                      width: 28, height: 28,
-                      decoration: const BoxDecoration(shape: BoxShape.circle, color: AppTheme.success),
-                      child: const Icon(Icons.verified, color: Colors.white, size: 14),
-                    )),
-                  ]),
+                  GestureDetector(
+                    onTap: () => _showPhotoOptions(context),
+                    child: Stack(children: [
+                      CircleAvatar(
+                        radius: 40,
+                        backgroundColor: AppTheme.providerInputFill,
+                        child: const Icon(Icons.person, color: Colors.white, size: 40),
+                      ),
+                      Positioned(
+                        bottom: 0, right: 0,
+                        child: Container(
+                          width: 28, height: 28,
+                          decoration: const BoxDecoration(shape: BoxShape.circle, color: AppTheme.success),
+                          child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                        ),
+                      ),
+                    ]),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text('Tap to change photo', style: TextStyle(color: Colors.white54, fontSize: 10)),
                 ]),
               ),
             ),
@@ -199,11 +263,15 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
 
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child: Consumer<RoleState>(builder: (context, rs, _) {
+              final displayName = rs.providerName ?? rs.displayName;
+              final categories  = (rs.providerProfile?['categories'] as List?)?.cast<String>() ??
+                  (profile['categories'] as List?)?.cast<String>() ?? ['Service Provider'];
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const SizedBox(height: 12),
-              Center(child: Text(profile['name'] ?? '', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w600))),
+              Center(child: Text(displayName, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w600))),
               const SizedBox(height: 4),
-              Center(child: Text((profile['categories'] as List?)?.join(' · ') ?? '', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13))),
+              Center(child: Text(categories.join(' · '), style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13))),
               const SizedBox(height: 8),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 ...List.generate(5, (i) => Icon(i < (profile['rating'] as num).toInt() ? Icons.star : Icons.star_border, color: AppTheme.warning, size: 18)),
@@ -407,7 +475,8 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                 ),
               ),
               const SizedBox(height: 100),
-            ]),
+            ]);
+          }), // end Consumer
           )),
         ],
       ),

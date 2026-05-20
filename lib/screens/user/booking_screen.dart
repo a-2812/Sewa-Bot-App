@@ -115,11 +115,13 @@ class _BookingScreenState extends State<BookingScreen>
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text('Booking Confirmed! 🎉',
-                        style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700)),
+                    const Text(
+                      'Booking Confirmed!',
+                      style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700),
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       '$providerName aapke paas $slotTime par aayenge.\nShukriya SewaBot use karne ka!',
@@ -294,12 +296,12 @@ class _BookingScreenState extends State<BookingScreen>
 
   String _typeLabel(String type) {
     switch (type) {
-      case 'confirmation':    return '✅ Booking confirmation';
-      case 'provider_alert':  return '🔔 Provider notified';
-      case 'reminder_user':   return '⏰ 1-hour reminder scheduled';
-      case 'reminder_provider': return '⏰ Provider reminder scheduled';
-      case 'completion_check':  return '✔ Completion check scheduled';
-      case 'feedback_request':  return '⭐ Feedback request scheduled';
+      case 'confirmation':      return 'Booking confirmation sent';
+      case 'provider_alert':    return 'Provider notified';
+      case 'reminder_user':     return '1-hour reminder scheduled';
+      case 'reminder_provider': return 'Provider reminder scheduled';
+      case 'completion_check':  return 'Completion check scheduled';
+      case 'feedback_request':  return 'Feedback request scheduled';
       default: return type;
     }
   }

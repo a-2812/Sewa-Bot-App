@@ -155,11 +155,15 @@ class _JobCardState extends State<JobCard> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: AppTheme.providerPrimary.withValues(alpha: 0.15),
+                color: AppTheme.providerPrimary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: AppTheme.providerPrimaryLight.withValues(alpha: 0.3)),
               ),
-              child: Text('🤖 $matchScore% match', style: const TextStyle(color: AppTheme.providerPrimaryLight, fontSize: 11)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.smart_toy_outlined, color: AppTheme.providerPrimaryLight, size: 10),
+                const SizedBox(width: 3),
+                Text('$matchScore% match', style: const TextStyle(color: AppTheme.providerPrimaryLight, fontSize: 11)),
+              ]),
             ),
             const SizedBox(width: 6),
             _urgencyBadge(urgency),
@@ -218,7 +222,14 @@ class _JobCardState extends State<JobCard> {
               width: double.infinity, height: 44,
               decoration: BoxDecoration(color: AppTheme.success, borderRadius: BorderRadius.circular(10)),
               alignment: Alignment.center,
-              child: const Text('✓ Job Accepted!', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
+                  SizedBox(width: 6),
+                  Text('Job Accepted!', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                ],
+              ),
             )
           else
             Row(children: [
@@ -232,7 +243,11 @@ class _JobCardState extends State<JobCard> {
                       side: const BorderSide(color: AppTheme.danger),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
-                    child: const Text('✕ Decline', style: TextStyle(color: AppTheme.danger, fontSize: 13)),
+                    child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.close, color: AppTheme.danger, size: 16),
+                      SizedBox(width: 4),
+                      Text('Decline', style: TextStyle(color: AppTheme.danger, fontSize: 13)),
+                    ]),
                   ),
                 ),
               ),
@@ -250,7 +265,11 @@ class _JobCardState extends State<JobCard> {
                     ),
                     child: _isAccepting
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : Text('✓ Accept — Rs. ${job['quoted_price'] ?? 0}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
+                        : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            const Icon(Icons.check, color: Colors.white, size: 16),
+                            const SizedBox(width: 4),
+                            Text('Accept — Rs. ${job['quoted_price'] ?? 0}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
+                          ]),
                   ),
                 ),
               ),
@@ -266,7 +285,7 @@ class _JobCardState extends State<JobCard> {
       child: Row(children: [
         Icon(icon, color: AppTheme.textSecondary, size: 14),
         const SizedBox(width: 10),
-        Text(text, style: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 13, fontWeight: FontWeight.w500)),
+        Text(text, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
         if (suffix != null) ...[const SizedBox(width: 6), Text(suffix, style: const TextStyle(color: AppTheme.textMuted, fontSize: 10))],
       ]),
     );
@@ -278,7 +297,7 @@ class _JobCardState extends State<JobCard> {
       child: Row(children: [
         const Icon(Icons.location_on_outlined, color: AppTheme.textSecondary, size: 14),
         const SizedBox(width: 10),
-        Text(job['location'] ?? '', style: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 13)),
+        Text(job['location'] ?? '', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13)),
         Container(width: 4, height: 4, margin: const EdgeInsets.symmetric(horizontal: 6), decoration: const BoxDecoration(shape: BoxShape.circle, color: AppTheme.providerPrimary)),
         Text('${job['distance_km'] ?? 0}km away', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
       ]),
@@ -299,16 +318,20 @@ class _JobCardState extends State<JobCard> {
   }
 
   Widget _urgencyBadge(String urgency) {
-    Color c; String label;
+    Color c; String label; IconData icon;
     switch (urgency) {
-      case 'high': c = AppTheme.danger; label = '🔴 Urgent'; break;
-      case 'low': c = AppTheme.success; label = '🟢 Routine'; break;
-      default: c = AppTheme.warning; label = '🟡 Normal';
+      case 'high': c = AppTheme.danger; label = 'Urgent'; icon = Icons.priority_high; break;
+      case 'low': c = AppTheme.success; label = 'Routine'; icon = Icons.check_circle_outline; break;
+      default: c = AppTheme.warning; label = 'Normal'; icon = Icons.schedule;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(color: c.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-      child: Text(label, style: TextStyle(color: c, fontSize: 10)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, color: c, size: 10),
+        const SizedBox(width: 3),
+        Text(label, style: TextStyle(color: c, fontSize: 10)),
+      ]),
     );
   }
 
