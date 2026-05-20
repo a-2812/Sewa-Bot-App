@@ -139,13 +139,13 @@ async def extract_intent(req: ExtractIntentRequest):
 
     session = AgentSession(req.session_id)
 
-    context_msgs = [
-        log["input"] for log in session.logs
-        if log.get("agent") == "IntentAgent" and isinstance(log.get("input"), str)
-    ]
-    context_str = "\n".join([f"- {m}" for m in context_msgs])
+    context_str, previous_intent = orchestrator._build_conversation_context(session.logs)
 
-    intent_data, workplan, agent_trace = intent_agent.run(req.message, context_str)
+    intent_data, workplan, agent_trace = intent_agent.run(
+        req.message,
+        context_str,
+        previous_intent,
+    )
 
     session.log(
         "IntentAgent",

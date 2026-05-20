@@ -29,6 +29,63 @@ from session_logger import AgentSession
 from config import BACKEND_BASE_URL
 
 
+def _is_empty_intent_value(value) -> bool:
+    if value is None:
+        return True
+    return str(value).strip().lower() in (
+        "",
+        "null",
+        "none",
+        "not mentioned",
+        "unknown",
+        "not_specified",
+    )
+
+
+def _build_conversation_context(logs: list) -> tuple[str, dict]:
+    """
+    Build prompt context from previous user turns and extracted intent fields.
+    Also returns an accumulated intent so follow-up answers can fill one field
+    without losing fields extracted earlier.
+    """
+    context_lines = []
+    previous_intent = {}
+    tracked_fields = [
+        "service_type",
+        "location",
+        "preferred_time",
+        "urgency",
+        "budget_sensitivity",
+        "job_complexity",
+        "language_detected",
+    ]
+
+    for log in logs:
+        if log.get("agent") != "IntentAgent":
+            continue
+
+        user_input = log.get("input")
+        output = log.get("output") if isinstance(log.get("output"), dict) else {}
+
+        if isinstance(user_input, str) and user_input.strip():
+            context_lines.append(f"- User: {user_input.strip()}")
+
+        if output:
+            extracted = []
+            for field in tracked_fields:
+                value = output.get(field)
+                if not _is_empty_intent_value(value):
+                    previous_intent[field] = value
+                    extracted.append(f"{field}={value}")
+            if extracted:
+                context_lines.append(f"  Extracted: {', '.join(extracted)}")
+            if output.get("clarification_needed"):
+                question = output.get("clarification_question") or "clarification requested"
+                context_lines.append(f"  Bot asked: {question}")
+
+    return "\n".join(context_lines), previous_intent
+
+
 def run_chat(user_message: str, session_id: str = None) -> dict:
     """
     POST /chat
@@ -38,10 +95,13 @@ def run_chat(user_message: str, session_id: str = None) -> dict:
     session = AgentSession(session_id)
 
     # ── 1. Intent Agent ───────────────────────────────────────
-    context_msgs = [log["input"] for log in session.logs if log.get("agent") == "IntentAgent" and isinstance(log.get("input"), str)]
-    context_str = "\n".join([f"- {m}" for m in context_msgs])
+    context_str, previous_intent = _build_conversation_context(session.logs)
     
-    intent_data, workplan, agent_trace_int = intent_agent.run(user_message, context_str)
+    intent_data, workplan, agent_trace_int = intent_agent.run(
+        user_message,
+        context_str,
+        previous_intent,
+    )
     session.log(
         "IntentAgent", user_message,
         agent_trace_int["reasoning"], intent_data,

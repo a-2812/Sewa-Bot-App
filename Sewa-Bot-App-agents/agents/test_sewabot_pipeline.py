@@ -14,6 +14,7 @@ import sys
 import os
 import types
 import pytest
+import uuid
 
 # ── Set TEST_MODE before importing anything ──────────────────────────────────
 os.environ["TEST_MODE"] = "true"
@@ -104,6 +105,43 @@ def test_intent_confidence_high():
     intent, _, _ = intent_agent.run(TEST_INPUT)
     assert intent.get("confidence_score", 0) >= 0.7, \
         f"Confidence too low: {intent.get('confidence_score')}"
+
+
+def test_intent_heuristics_handle_clear_request_when_gemini_fails(monkeypatch):
+    class _FailingModel:
+        def generate_content(self, prompt):
+            raise RuntimeError("simulated Gemini outage")
+
+    monkeypatch.setattr(intent_agent, "model", _FailingModel())
+
+    intent, _, _ = intent_agent.run("I need ac repair services in Islamabad g-13")
+
+    assert intent["service_type"] == "AC Technician"
+    assert "g-13" in intent["location"].lower()
+    assert "islamabad" in intent["location"].lower()
+    assert not intent.get("clarification_needed")
+
+
+def test_chat_followup_merges_previous_service_when_gemini_fails(monkeypatch):
+    class _FailingModel:
+        def generate_content(self, prompt):
+            raise RuntimeError("simulated Gemini outage")
+
+    monkeypatch.setattr(intent_agent, "model", _FailingModel())
+    session_id = f"test_loop_{uuid.uuid4().hex}"
+
+    first = orchestrator.run_chat("hlo", session_id)
+    assert first.get("clarification_needed")
+
+    second = orchestrator.run_chat("I want ac repair services", session_id)
+    assert second.get("clarification_needed")
+    assert second["intent"]["service_type"] == "AC Technician"
+    assert "area" in second.get("clarification_question", "").lower()
+
+    third = orchestrator.run_chat("Islamabad g-13", session_id)
+    assert third["intent"]["service_type"] == "AC Technician"
+    assert "g-13" in third["intent"]["location"].lower()
+    assert not third["intent"].get("clarification_needed")
 
 
 # ─── 2. Discovery Agent ───────────────────────────────────────────────────────

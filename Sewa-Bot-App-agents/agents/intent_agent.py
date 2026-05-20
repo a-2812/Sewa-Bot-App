@@ -50,102 +50,229 @@ Previous conversation context (if any):
 User's latest request: "{user_input}"
 """
 
+# ── Service keyword map — mirrors discovery_agent.SERVICE_ALIASES ────────────
+SERVICE_KEYWORDS = {
+    "ac":              "AC Technician",
+    "ac repair":       "AC Technician",
+    "ac technician":   "AC Technician",
+    "ac service":      "AC Technician",
+    "ac fix":          "AC Technician",
+    "air conditioning":"AC Technician",
+    "air conditioner": "AC Technician",
+    "cooling":         "AC Technician",
+    "plumber":         "Plumber",
+    "plumbing":        "Plumber",
+    "water":           "Plumber",
+    "pipe":            "Plumber",
+    "leak":            "Plumber",
+    "nalkay":          "Plumber",
+    "pani":            "Plumber",
+    "electrician":     "Electrician",
+    "electrical":      "Electrician",
+    "electric":        "Electrician",
+    "wiring":          "Electrician",
+    "lights":          "Electrician",
+    "bijli":           "Electrician",
+    "tutor":           "Math Tutor",
+    "math tutor":      "Math Tutor",
+    "teacher":         "Math Tutor",
+    "math":            "Math Tutor",
+    "mathematics":     "Math Tutor",
+    "education":       "Math Tutor",
+    "study":           "Math Tutor",
+    "padhai":          "Math Tutor",
+    "beautician":      "Beautician",
+    "beauty":          "Beautician",
+    "salon":           "Beautician",
+    "makeup":          "Beautician",
+    "hair":            "Beautician",
+    "parlour":         "Beautician",
+    "parlor":          "Beautician",
+    "carpenter":       "Carpenter",
+    "carpentry":       "Carpenter",
+    "wood":            "Carpenter",
+    "furniture":       "Carpenter",
+    "lakri":           "Carpenter",
+}
 
-def run(user_input: str, context: str = "") -> tuple[dict, str, dict]:
+
+def _is_empty(val) -> bool:
+    """Check if a value is effectively empty/null/unknown."""
+    if val is None:
+        return True
+    s = str(val).strip().lower()
+    return s in ("", "null", "none", "not mentioned", "unknown", "not_specified")
+
+
+def _extract_service_from_text(text: str):
+    """Heuristic: extract service_type from user text using keyword matching."""
+    if not text:
+        return None
+    t = text.lower().strip()
+
+    # Try multi-word matches first (longer keys first for greedy match)
+    sorted_keywords = sorted(SERVICE_KEYWORDS.keys(), key=len, reverse=True)
+    for keyword in sorted_keywords:
+        # Use word-boundary matching to avoid false positives
+        pattern = r'\b' + re.escape(keyword) + r'\b'
+        if re.search(pattern, t):
+            return SERVICE_KEYWORDS[keyword]
+
+    return None
+
+
+def _extract_location_from_text(text: str):
+    """Heuristic: extract location from user text using area/city patterns."""
+    if not text:
+        return None
+    t = (text or "").lower()
+
+    # Normalize common area shorthand like 'g13' -> 'g-13'
+    t_norm = re.sub(r"\bg\s*[-\s]?\s*(\d{1,2})\b", r"g-\1", t, flags=re.IGNORECASE)
+    t_norm = re.sub(r"\bf\s*[-\s]?\s*(\d{1,2})\b", r"f-\1", t_norm, flags=re.IGNORECASE)
+    t_norm = re.sub(r"\bi\s*[-\s]?\s*(\d{1,2})\b", r"i-\1", t_norm, flags=re.IGNORECASE)
+    t_norm = re.sub(r"\be\s*[-\s]?\s*(\d{1,2})\b", r"e-\1", t_norm, flags=re.IGNORECASE)
+
+    # Look for area patterns and city names
+    area_match = re.search(
+        r"\b([gfie]-\d{1,2}|dha|gulberg|bahria\s*town|cantt|model\s*town|johar\s*town|blue\s*area|saddar|clifton|defence|sector\s*\d+)\b",
+        t_norm, flags=re.IGNORECASE
+    )
+    cities = [
+        "islamabad", "lahore", "karachi", "rawalpindi", "peshawar",
+        "multan", "faisalabad", "quetta", "sialkot", "gujranwala",
+        "hyderabad", "abbottabad", "mardan",
+    ]
+    city_found = None
+    for c in cities:
+        if re.search(r"\b" + re.escape(c) + r"\b", t_norm):
+            city_found = c.title()
+            break
+
+    if area_match and city_found:
+        area = area_match.group(0).upper()
+        return f"{area}, {city_found}"
+    if city_found:
+        return city_found
+    if area_match:
+        return area_match.group(0).upper()
+    return None
+
+
+def run(user_input: str, context: str = "", previous_intent: dict = None) -> tuple[dict, str, dict]:
     start = time.time()
 
     prompt = INTENT_PROMPT.format(user_input=user_input, context=context or "None")
 
-    try:
-        response = model.generate_content(prompt)
-        raw = response.text.strip()
-        if raw.startswith("```"):
-            lines = raw.split("\n")
-            raw = "\n".join(lines[1:-1])
-        intent_data = json.loads(raw)
-    except Exception as e:
-        print(f"\n[INTENT AGENT ERROR]: Gemini API failed: {e}\n")
+    intent_data = None
+    gemini_error = None
+
+    # ── Try Gemini with 1 retry ───────────────────────────────────────────────
+    for attempt in range(2):
+        try:
+            response = model.generate_content(prompt)
+            raw = response.text.strip()
+            if raw.startswith("```"):
+                lines = raw.split("\n")
+                raw = "\n".join(lines[1:-1])
+            intent_data = json.loads(raw)
+            gemini_error = None
+            break  # Success
+        except Exception as e:
+            gemini_error = e
+            if attempt == 0:
+                time.sleep(0.5)  # Brief pause before retry
+                continue
+
+    # ── If Gemini failed both attempts, build intent from heuristics ──────────
+    if intent_data is None:
+        print(f"\n[INTENT AGENT ERROR]: Gemini API failed after 2 attempts: {gemini_error}\n")
+
+        # Try to extract what we can from the user's text directly
+        heuristic_service = _extract_service_from_text(user_input)
+        heuristic_location = _extract_location_from_text(user_input)
+
         intent_data = {
-            "service_type": "unknown",
-            "location": None,
+            "service_type": heuristic_service or "unknown",
+            "location": heuristic_location,
             "preferred_time": "not_specified",
             "urgency": "normal",
             "budget_sensitivity": "medium",
             "job_complexity": "simple",
             "language_detected": "mixed",
-            "confidence_score": 0.3,
-            "clarification_needed": True,
-            "clarification_question": "Could you please clarify what service you need and your area/city?"
+            "confidence_score": 0.5 if (heuristic_service or heuristic_location) else 0.2,
+            "clarification_needed": False,  # Will be re-evaluated below
+            "clarification_question": None,
         }
 
-    # ── Post-parse enforcement: location is ALWAYS required ──────────────────
-    # Even if Gemini returns clarification_needed=False, validate fields.
-    # This ensures we never pass a null location to DiscoveryAgent.
+    # ── Merge with previous intent (multi-turn conversation) ─────────────────
+    if previous_intent and isinstance(previous_intent, dict):
+        for field in ["service_type", "location", "preferred_time", "urgency",
+                       "budget_sensitivity", "job_complexity", "language_detected"]:
+            current_val = intent_data.get(field)
+            prev_val = previous_intent.get(field)
+            if _is_empty(current_val) and not _is_empty(prev_val):
+                intent_data[field] = prev_val
+
+    # ── Post-parse: validate & patch missing fields ──────────────────────────
     location = intent_data.get("location")
     service  = intent_data.get("service_type", "unknown")
 
-    location_missing = (
-        location is None
-        or str(location).strip().lower() in ("", "null", "none", "not mentioned", "unknown")
-    )
-    service_missing = (
-        not service
-        or service.strip().lower() in ("", "null", "none", "unknown")
-    )
+    location_missing = _is_empty(location)
+    service_missing  = _is_empty(service)
 
-    # If the model didn't provide a location, attempt a quick heuristic
-    # extractor from the user's text (eg. "G-13", "Islamabad", "DHA Lahore").
-    def _extract_location_from_text(text: str) -> None:
-        t = (text or "").lower()
-
-        # Normalize common area shorthand like 'g13' -> 'g-13'
-        t_norm = re.sub(r"\bg\s*[-\s]?\s*(\d{1,2})\b", r"g-\1", t, flags=re.IGNORECASE)
-
-        # Look for area patterns and city names
-        area_match = re.search(r"\b(g-\d{1,2}|f-\d{1,2}|dha|gulberg|bahria town|cantt|sector\s*\d+)\b", t_norm, flags=re.IGNORECASE)
-        cities = [
-            "islamabad", "lahore", "karachi", "rawalpindi", "peshawar",
-            "multan", "faisalabad", "quetta", "sialkot", "gujranwala"
-        ]
-        city_found = None
-        for c in cities:
-            if re.search(r"\b" + re.escape(c) + r"\b", t_norm):
-                city_found = c.title()
-                break
-
-        if area_match and city_found:
-            area = area_match.group(0).upper()
-            return f"{area}, {city_found}"
-        if city_found:
-            return city_found
-        if area_match:
-            return area_match.group(0).upper()
-        return None
-
+    # Try heuristic extraction if fields are still missing
     if location_missing:
         fallback_loc = _extract_location_from_text(user_input)
         if fallback_loc:
             intent_data["location"] = fallback_loc
-            intent_data["clarification_needed"] = False
-            intent_data["clarification_question"] = None
-        else:
-            if not intent_data.get("clarification_needed"):
-                lang = intent_data.get("language_detected", "mixed")
-                if lang == "urdu":
-                    question = "آپ کا علاقہ یا شہر کیا ہے؟ مثلاً G-13 اسلام آباد یا DHA لاہور"
-                elif lang == "roman_urdu":
-                    question = "Aap ka area ya city kia hai? Jaise G-13 Islamabad ya DHA Lahore."
-                else:
-                    question = "Which area or city are you in? For example, G-13 Islamabad or DHA Lahore."
-                intent_data["clarification_needed"] = True
-                intent_data["clarification_question"] = question
-                intent_data["location"] = None
+            location_missing = False
 
-    if service_missing and not intent_data.get("clarification_needed"):
+    if service_missing:
+        fallback_svc = _extract_service_from_text(user_input)
+        if fallback_svc:
+            intent_data["service_type"] = fallback_svc
+            service_missing = False
+
+    # Re-read after patching
+    location_missing = _is_empty(intent_data.get("location"))
+    service_missing  = _is_empty(intent_data.get("service_type"))
+
+    # ── Determine if clarification is actually needed ────────────────────────
+    lang = intent_data.get("language_detected", "mixed")
+
+    if location_missing and service_missing:
+        # Both missing — ask for both
         intent_data["clarification_needed"] = True
-        intent_data["clarification_question"] = (
-            "Which service do you need? (e.g. AC Technician, Plumber, Electrician)"
-        )
+        if lang == "urdu":
+            intent_data["clarification_question"] = "آپ کو کیا سروس چاہیے اور آپ کا علاقہ کیا ہے؟ مثلاً AC ٹیکنیشن G-13 اسلام آباد"
+        elif lang == "roman_urdu":
+            intent_data["clarification_question"] = "Aap ko kya service chahiye aur aap ka area kya hai? Jaise AC Technician G-13 Islamabad"
+        else:
+            intent_data["clarification_question"] = "What service do you need and which area are you in? For example: AC Technician in G-13, Islamabad"
+    elif service_missing:
+        # Only service missing
+        intent_data["clarification_needed"] = True
+        if lang == "urdu":
+            intent_data["clarification_question"] = "آپ کو کون سی سروس چاہیے؟ مثلاً AC ٹیکنیشن، پلمبر، الیکٹریشن"
+        elif lang == "roman_urdu":
+            intent_data["clarification_question"] = "Aap ko konsi service chahiye? Jaise AC Technician, Plumber, Electrician"
+        else:
+            intent_data["clarification_question"] = "Which service do you need? (e.g. AC Technician, Plumber, Electrician)"
+    elif location_missing:
+        # Only location missing
+        intent_data["clarification_needed"] = True
+        if lang == "urdu":
+            intent_data["clarification_question"] = "آپ کا علاقہ یا شہر کیا ہے؟ مثلاً G-13 اسلام آباد یا DHA لاہور"
+        elif lang == "roman_urdu":
+            intent_data["clarification_question"] = "Aap ka area ya city kia hai? Jaise G-13 Islamabad ya DHA Lahore."
+        else:
+            intent_data["clarification_question"] = "Which area or city are you in? For example, G-13 Islamabad or DHA Lahore."
+    else:
+        # Both resolved — no clarification needed!
+        intent_data["clarification_needed"] = False
+        intent_data["clarification_question"] = None
+
     # ─────────────────────────────────────────────────────────────────────────
 
     duration_ms = int((time.time() - start) * 1000)
@@ -171,6 +298,7 @@ def run(user_input: str, context: str = "") -> tuple[dict, str, dict]:
             if intent_data.get("clarification_needed")
             else "Extraction successful — all key fields resolved."
         )
+        + (f" [Gemini failed, used heuristics]" if gemini_error else "")
     )
 
     workplan = {
