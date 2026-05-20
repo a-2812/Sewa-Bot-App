@@ -32,50 +32,39 @@ Common Pakistani expressions:
 
 Return ONLY valid JSON, no markdown, no explanation.
 
-User request: "{user_input}"
+Previous conversation context (if any):
+{context}
+
+User's latest request: "{user_input}"
 """
 
 
-def run(user_input: str) -> tuple[dict, str]:
+def run(user_input: str, context: str = "") -> tuple[dict, str]:
     start = time.time()
 
-    prompt = INTENT_PROMPT.format(user_input=user_input)
+    prompt = INTENT_PROMPT.format(user_input=user_input, context=context or "None")
 
-    # Fast-path mock for exact demo scenario
-    if "Mujhe kal subah G-13 mein AC technician chahiye" in user_input:
+    try:
+        response = model.generate_content(prompt)
+        raw = response.text.strip()
+        if raw.startswith("```"):
+            lines = raw.split("\n")
+            raw = "\n".join(lines[1:-1])
+        intent_data = json.loads(raw)
+    except Exception as e:
+        print(f"\n[INTENT AGENT ERROR]: Gemini API failed: {e}\n")
         intent_data = {
-            "service_type": "AC Technician",
-            "location": "G-13",
-            "preferred_time": "tomorrow_morning",
+            "service_type": "unknown",
+            "location": None,
+            "preferred_time": "not_specified",
             "urgency": "normal",
             "budget_sensitivity": "medium",
             "job_complexity": "simple",
-            "language_detected": "roman_urdu",
-            "confidence_score": 0.95,
-            "clarification_needed": False,
-            "clarification_question": None
+            "language_detected": "mixed",
+            "confidence_score": 0.3,
+            "clarification_needed": True,
+            "clarification_question": "Could you please clarify what service you need and your location?"
         }
-    else:
-        try:
-            response = model.generate_content(prompt)
-            raw = response.text.strip()
-            if raw.startswith("```"):
-                lines = raw.split("\n")
-                raw = "\n".join(lines[1:-1])
-            intent_data = json.loads(raw)
-        except Exception:
-            intent_data = {
-                "service_type": "unknown",
-                "location": None,
-                "preferred_time": "not_specified",
-                "urgency": "normal",
-                "budget_sensitivity": "medium",
-                "job_complexity": "simple",
-                "language_detected": "mixed",
-                "confidence_score": 0.3,
-                "clarification_needed": True,
-                "clarification_question": "Could you please clarify what service you need and your location?"
-            }
 
     duration_ms = int((time.time() - start) * 1000)
     intent_data["raw_input"] = user_input

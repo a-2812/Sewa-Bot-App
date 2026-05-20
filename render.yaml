@@ -1,0 +1,64 @@
+## SewaBot — Render Deployment Configuration
+## ============================================
+## Two web services:
+##   sewabot-backend  (FastAPI backend, port $PORT)
+##   sewabot-agents   (Python agents API, port $PORT)
+##
+## After deploying:
+##  1. Set FIREBASE_CREDENTIALS_JSON in each service's Environment tab
+##  2. Set GEMINI_API_KEY in sewabot-agents Environment tab
+##  3. Flutter: build with --dart-define using the Render HTTPS URLs
+
+services:
+  # ── SewaBot Backend API ───────────────────────────────────────────────────
+  - type: web
+    name: sewabot-backend
+    runtime: python
+    rootDir: Sewa-Bot-App-backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+
+    envVars:
+      # Render injects PORT automatically — do not set it here
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false          # Set this secret in Render dashboard
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: ""            # Leave blank; use FIREBASE_CREDENTIALS_JSON instead
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+
+    healthCheckPath: /
+
+  # ── SewaBot Agents API ────────────────────────────────────────────────────
+  - type: web
+    name: sewabot-agents
+    runtime: python
+    rootDir: Sewa-Bot-App-agents/agents
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main_api:app --host 0.0.0.0 --port $PORT
+    plan: free
+
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false          # Set this secret in Render dashboard
+      - key: BACKEND_BASE_URL
+        fromService:
+          type: web
+          name: sewabot-backend
+          property: host
+          envVarKey: BACKEND_BASE_URL
+        # Fallback: set manually if fromService resolution fails
+        value: https://sewabot-backend.onrender.com
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: TEST_MODE
+        value: "false"
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+
+    healthCheckPath: /

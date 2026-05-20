@@ -38,7 +38,10 @@ def run_chat(user_message: str, session_id: str = None) -> dict:
     session = AgentSession(session_id)
 
     # ── 1. Intent Agent ───────────────────────────────────────
-    intent_data, workplan, agent_trace_int = intent_agent.run(user_message)
+    context_msgs = [log["input"] for log in session.logs if log.get("agent") == "IntentAgent" and isinstance(log.get("input"), str)]
+    context_str = "\n".join([f"- {m}" for m in context_msgs])
+    
+    intent_data, workplan, agent_trace_int = intent_agent.run(user_message, context_str)
     session.log(
         "IntentAgent", user_message,
         agent_trace_int["reasoning"], intent_data,

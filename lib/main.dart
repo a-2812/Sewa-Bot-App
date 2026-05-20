@@ -78,7 +78,7 @@ class KhidmatAIApp extends StatelessWidget {
             title: 'SewaBot',
             debugShowCheckedModeBanner: false,
             theme: roleState.hasRole ? roleState.theme : AppTheme.userTheme,
-            initialRoute: '/dev-index',
+            initialRoute: '/splash',
             routes: {
               // ─── Shared Routes ────────────────────────
               '/dev-index': (context) => const DevIndexScreen(),

@@ -1,51 +1,52 @@
 import 'package:flutter/foundation.dart';
 
-/// Central API configuration for SewaBot.
+/// SewaBot API Configuration
 ///
-/// ── Switching targets ──────────────────────────────────────────
-///   Web / desktop / local browser  →  set [target] = AppTarget.web
-///   Android emulator               →  set [target] = AppTarget.emulator
-///   Physical device on LAN         →  set [target] = AppTarget.device
-///                                     and set [lanIp] to your machine's IP
-/// ───────────────────────────────────────────────────────────────
-enum AppTarget { web, emulator, device }
-
+/// All URLs are injected at build time via --dart-define.
+/// Defaults point to Render production services.
+///
+/// ── Local dev (Flutter Web) ──────────────────────────────────────
+///   flutter run --dart-define=AGENTS_BASE_URL=http://localhost:8001 \
+///               --dart-define=BACKEND_BASE_URL=http://localhost:8000 \
+///               --dart-define=DEMO_MODE=false
+///
+/// ── Android Emulator ────────────────────────────────────────────
+///   Use 10.0.2.2 instead of localhost:
+///   flutter run --dart-define=AGENTS_BASE_URL=http://10.0.2.2:8001 \
+///               --dart-define=BACKEND_BASE_URL=http://10.0.2.2:8000
+///
+/// ── Production (Render) ─────────────────────────────────────────
+///   flutter build apk \
+///     --dart-define=AGENTS_BASE_URL=https://sewabot-agents.onrender.com \
+///     --dart-define=BACKEND_BASE_URL=https://sewabot-backend.onrender.com \
+///     --dart-define=DEMO_MODE=false
+///
+/// IMPORTANT: Production must always use HTTPS.
 class AppConfig {
-  // ─── ★ CHANGE THIS to switch between targets ───────────────
-  static const AppTarget _target = AppTarget.web;
+  // ── Injected at build time via --dart-define ──────────────────
 
-  /// Only used when target == AppTarget.device
-  /// Set this to your machine's LAN IP (e.g. '192.168.1.5')
-  static const String _lanIp = '192.168.1.5';
+  /// SewaBot Agents API (AI orchestration) — default: Render prod URL
+  static const String agentsBaseUrl = String.fromEnvironment(
+    'AGENTS_BASE_URL',
+    defaultValue: 'https://sewabot-agents.onrender.com',
+  );
 
-  // ─── Demo / Mock mode ──────────────────────────────────────
-  /// Set to true to use mock data without a running API server.
-  /// Set to false for live integrated demo.
-  static const bool demoMode = false;
+  /// SewaBot Backend API (persistence / Firestore) — default: Render prod URL
+  static const String backendBaseUrl = String.fromEnvironment(
+    'BACKEND_BASE_URL',
+    defaultValue: 'https://sewabot-backend.onrender.com',
+  );
 
-  // ─── Resolved host ────────────────────────────────────────
-  static String get _host {
-    // Auto-detect: on web kIsWeb == true → use localhost
-    if (kIsWeb) return 'localhost';
-    switch (_target) {
-      case AppTarget.web:
-        return 'localhost';
-      case AppTarget.emulator:
-        return '10.0.2.2';
-      case AppTarget.device:
-        return _lanIp;
-    }
-  }
+  /// Demo mode — uses mock data when true, bypasses all API calls
+  static const bool demoMode = bool.fromEnvironment(
+    'DEMO_MODE',
+    defaultValue: false,
+  );
 
-  /// SewaBot Agents API (orchestration layer) — port 8001
-  static String get agentsBaseUrl => 'http://$_host:8001';
-
-  /// SewaBot Backend API (persistence layer) — port 8000
-  static String get backendBaseUrl => 'http://$_host:8000';
-
-  /// Timeout for agent calls (Gemini can take up to 10 s)
+  // ── Timeouts ─────────────────────────────────────────────────
+  /// Gemini-backed agents can take up to 10 s; give extra headroom
   static const Duration agentTimeout = Duration(seconds: 60);
 
-  /// Timeout for direct backend calls
-  static const Duration backendTimeout = Duration(seconds: 15);
+  /// Direct backend calls (Firestore, bookings, disputes)
+  static const Duration backendTimeout = Duration(seconds: 20);
 }

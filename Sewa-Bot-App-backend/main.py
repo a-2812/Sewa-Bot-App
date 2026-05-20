@@ -223,24 +223,56 @@ def _load_providers() -> list[dict[str, Any]]:
 
 
 def _load_bookings() -> dict[str, Any]:
-    """Return the bookings dict from Firestore."""
+    """Return the bookings dict from Firestore, falling back to local JSON."""
     try:
         db = get_firestore_client()
-        docs = db.collection('bookings').stream()
-        return {doc.id: doc.to_dict() for doc in docs}
+        if db:
+            docs = db.collection('bookings').stream()
+            return {doc.id: doc.to_dict() for doc in docs}
     except Exception as e:
-        print(f"Error loading bookings from Firestore: {e}")
-        raise HTTPException(status_code=503, detail="Database connection failed")
+        print(f"[backend] Firestore read failed: {e} — falling back to local JSON")
+
+    # Local JSON fallback
+    if BOOKINGS_FILE.exists():
+        try:
+            raw = json.loads(BOOKINGS_FILE.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                return {b.get("booking_id", str(i)): b for i, b in enumerate(raw)}
+            return raw
+        except json.JSONDecodeError:
+            pass
+    return {}
 
 
 def _save_booking(booking_id: str, record: dict[str, Any]) -> None:
-    """Persist a single booking to Firestore."""
+    """Persist a booking to Firestore, falling back to local JSON."""
+    saved_to_firestore = False
     try:
         db = get_firestore_client()
-        db.collection('bookings').document(booking_id).set(record)
+        if db:
+            db.collection('bookings').document(booking_id).set(record)
+            saved_to_firestore = True
     except Exception as e:
-        print(f"Error saving booking to Firestore: {e}")
-        raise HTTPException(status_code=503, detail="Database connection failed")
+        print(f"[backend] Firestore write failed: {e}")
+
+    if not saved_to_firestore:
+        # Local JSON fallback
+        BOOKINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        bookings: dict[str, Any] = {}
+        if BOOKINGS_FILE.exists():
+            try:
+                raw = json.loads(BOOKINGS_FILE.read_text(encoding="utf-8"))
+                if isinstance(raw, list):
+                    bookings = {b.get("booking_id", str(i)): b for i, b in enumerate(raw)}
+                else:
+                    bookings = raw
+            except json.JSONDecodeError:
+                pass
+        bookings[booking_id] = record
+        BOOKINGS_FILE.write_text(
+            json.dumps(list(bookings.values()), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
 
 def _save_notification(record: dict[str, Any]) -> None:
@@ -771,6 +803,86 @@ def get_agent_log_by_session(session_id: str) -> dict[str, Any]:
 # Background Tasks
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Disputes Route
+# ---------------------------------------------------------------------------
+
+class DisputeRequest(BaseModel):
+    """POST /disputes request body."""
+    booking_id: str = Field(..., description="Booking ID the dispute is against")
+    category: str = Field(..., description="Category: Late Arrival, Quality Issue, etc.")
+    description: str = Field(..., min_length=20, description="Detailed description")
+    contact_phone: str = Field(..., description="Contact phone number")
+
+
+class DisputeResponse(BaseModel):
+    dispute_id: str
+    status: str
+    message: str
+    created_at: str
+
+
+@app.post(
+    "/disputes",
+    response_model=DisputeResponse,
+    status_code=201,
+    summary="File a Dispute",
+    tags=["Disputes"],
+)
+def create_dispute(body: DisputeRequest) -> DisputeResponse:
+    """File a dispute against a booking. Persists to Firestore disputes collection."""
+    dispute_id = f"DS-{uuid.uuid4().hex[:10].upper()}"
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    record: dict[str, Any] = {
+        "dispute_id": dispute_id,
+        "booking_id": body.booking_id,
+        "category": body.category,
+        "description": body.description,
+        "contact_phone": body.contact_phone,
+        "status": "received",
+        "created_at": created_at,
+    }
+
+    # Persist to Firestore if available, else write to local JSON
+    try:
+        db = get_firestore_client()
+        if db:
+            db.collection("disputes").document(dispute_id).set(record)
+        else:
+            _save_dispute_local(record)
+    except Exception as e:
+        print(f"Error saving dispute: {e}")
+        _save_dispute_local(record)
+
+    return DisputeResponse(
+        dispute_id=dispute_id,
+        status="received",
+        message="Your dispute has been received. We will review it within 24 hours.",
+        created_at=created_at,
+    )
+
+
+def _save_dispute_local(record: dict[str, Any]) -> None:
+    """Local JSON fallback when Firestore is unavailable."""
+    disputes_file = _BASE / "data" / "disputes.json"
+    disputes_file.parent.mkdir(parents=True, exist_ok=True)
+    disputes = []
+    if disputes_file.exists():
+        try:
+            disputes = json.loads(disputes_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            pass
+    disputes.append(record)
+    disputes_file.write_text(
+        json.dumps(disputes, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Background Tasks
+# ---------------------------------------------------------------------------
+
 async def backup_firestore_data():
     """Background task to back up Firestore data every hour."""
     while True:
@@ -809,10 +921,5 @@ async def startup_event():
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info",
-    )
+    _port = int(os.getenv("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=_port, reload=False)
