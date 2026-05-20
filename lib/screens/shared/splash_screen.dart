@@ -212,7 +212,7 @@ class _SplashScreenState extends State<SplashScreen>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildChip('👤 For Users', Colors.white),
+                        _buildChip(Icons.person_outline_rounded, 'For Users', Colors.white),
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 12),
                           child: Text(
@@ -223,7 +223,7 @@ class _SplashScreenState extends State<SplashScreen>
                             ),
                           ),
                         ),
-                        _buildChip('🔧 For Providers', Colors.grey),
+                        _buildChip(Icons.build_outlined, 'For Providers', Colors.grey),
                       ],
                     ),
                   ),
@@ -258,7 +258,7 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  Widget _buildChip(String label, Color color) {
+  Widget _buildChip(IconData icon, String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
@@ -266,13 +266,20 @@ class _SplashScreenState extends State<SplashScreen>
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }

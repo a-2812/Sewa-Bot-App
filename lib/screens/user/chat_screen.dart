@@ -46,7 +46,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       }
       if (!_isVoiceMode) {
         _addBotMessage(
-            'Hello! 👋\nWhat service do you need? You can tell me in English, Urdu, or Roman Urdu.\n\nExample: "Mujhe kal subah G-13 mein AC technician chahiye"');
+            'Hello! What service do you need?\nYou can tell me in English, Urdu, or Roman Urdu.\n\nExample: "Mujhe kal subah G-13 mein AC technician chahiye"');
       }
     });
   }
@@ -90,7 +90,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     final appState = context.read<AppState>();
 
     // ── Step 1: extractIntent ────────────────────────────────
-    _addBotMessage('🤖 Samajh raha hoon...');
+    _addBotMessage('Analysing your request...');
     final intentResult = await AgentService.extractIntent(
       text.trim(),
       sessionId: appState.sessionId,
@@ -103,7 +103,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     if (intentResult.containsKey('error') && !intentResult.containsKey('intent')) {
       setState(() => _isLoading = false);
       _addBotMessage(
-          '❌ Agents API se connect nahi ho saka.\n\n'
+          'Could not connect to Agents API.\n\n'
           'Make sure the agents server is running:\n'
           '  python main_api.py  (port 8001)\n\n'
           'Error: ${intentResult['error']}');
@@ -128,7 +128,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       final q = intent['clarification_question'] ?? 'Thori aur detail de dein?';
       appState.setClarification(needed: true, question: q);
       setState(() => _isLoading = false);
-      _addBotMessage('🤔 $q');
+      _addBotMessage(q);
       return;
     }
     appState.setClarification(needed: false);
@@ -147,12 +147,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     // Show fallback banner if demo mode triggered
     if (intentResult['_fallback'] == true) {
       _addBotMessage(
-          '⚠ Demo mode: API unreachable, showing sample data.\n'
+          'Demo mode — showing sample data.\n'
           '${intentResult['_fallback_reason'] ?? ''}');
     }
 
     // ── Step 2: getProviders ────────────────────────────────
-    _addBotMessage('🔍 Providers dhundh raha hoon...');
+    _addBotMessage('Searching for providers...');
 
     final provResult = await AgentService.getProviders(
       activeSessionId,
@@ -176,14 +176,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     if (providers.isEmpty) {
       _addBotMessage(
-          '😔 Is area mein koi provider nahi mila.\n\n'
-          'Try karo: Islamabad, G-13, F-10, Lahore, DHA, Gulberg, etc.');
+          'No providers found in this area.\n\n'
+          'Try: Islamabad, G-13, F-10, Lahore, DHA, Gulberg, etc.');
       return;
     }
 
     final demo = provResult['_fallback'] == true ? ' (demo)' : '';
     _addBotMessage(
-        '✅ ${providers.length} provider${providers.length == 1 ? '' : 's'} mile$demo! Top matches dekh lein:');
+        '${providers.length} provider${providers.length == 1 ? '' : 's'} found$demo. Showing top matches:');
 
     await Future.delayed(const Duration(milliseconds: 600));
     if (mounted) {
@@ -234,7 +234,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     final result = await AgentService.chat(text, appState.sessionId);
 
     if (result.containsKey('error')) {
-      _addBotMessage('❌ ${result['error']}');
+      _addBotMessage('Error: ${result['error']}');
       return;
     }
 
@@ -245,7 +245,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       final question = result['clarification_question'] ?? 'Thori detail dein?';
       voiceState.addToHistory(question, false);
       voiceState.setStatus('Sawal pooch raha hoon...');
-      _addBotMessage('🤔 $question');
+      _addBotMessage(question);
       await VoiceService.speak(question);
       voiceState.setStatus('Jawab dijiye...');
       return;
@@ -261,7 +261,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     final spokenResponse =
         "${intent?['service_type'] ?? 'Service'} ki request mil gayi. ${providers.length} providers mile.";
     voiceState.addToHistory(spokenResponse, false);
-    _addBotMessage('✅ $spokenResponse');
+    _addBotMessage(spokenResponse);
     await VoiceService.speak(spokenResponse);
 
     await Future.delayed(const Duration(milliseconds: 500));
