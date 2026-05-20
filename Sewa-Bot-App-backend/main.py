@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 
 from firebase_config import get_firestore_client
 
+
 # ---------------------------------------------------------------------------
 # App bootstrap
 # ---------------------------------------------------------------------------
@@ -1039,6 +1040,12 @@ async def backup_firestore_data():
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(backup_firestore_data())
+    # Seed providers into Firestore on first run (non-blocking)
+    try:
+        from upload_data import ensure_providers_in_firestore
+        await asyncio.get_event_loop().run_in_executor(None, ensure_providers_in_firestore)
+    except Exception as e:
+        print(f"[startup] Provider seed skipped: {e}")
 
 
 # ---------------------------------------------------------------------------
