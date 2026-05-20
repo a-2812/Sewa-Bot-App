@@ -1,6 +1,7 @@
 import json
 import time
-import google.generativeai as genai
+import re
+from google import genai
 from config import GEMINI_API_KEY
 
 genai.configure(api_key=GEMINI_API_KEY)
@@ -92,17 +93,53 @@ def run(user_input: str, context: str = "") -> tuple[dict, str, dict]:
         or service.strip().lower() in ("", "null", "none", "unknown")
     )
 
-    if location_missing and not intent_data.get("clarification_needed"):
-        lang = intent_data.get("language_detected", "mixed")
-        if lang == "urdu":
-            question = "آپ کا علاقہ یا شہر کیا ہے؟ مثلاً G-13 اسلام آباد یا DHA لاہور"
-        elif lang == "roman_urdu":
-            question = "Aap ka area ya city kia hai? Jaise G-13 Islamabad ya DHA Lahore."
+    # If the model didn't provide a location, attempt a quick heuristic
+    # extractor from the user's text (eg. "G-13", "Islamabad", "DHA Lahore").
+    def _extract_location_from_text(text: str) -> None:
+        t = (text or "").lower()
+
+        # Normalize common area shorthand like 'g13' -> 'g-13'
+        t_norm = re.sub(r"\bg\s*[-\s]?\s*(\d{1,2})\b", r"g-\1", t, flags=re.IGNORECASE)
+
+        # Look for area patterns and city names
+        area_match = re.search(r"\b(g-\d{1,2}|f-\d{1,2}|dha|gulberg|bahria town|cantt|sector\s*\d+)\b", t_norm, flags=re.IGNORECASE)
+        cities = [
+            "islamabad", "lahore", "karachi", "rawalpindi", "peshawar",
+            "multan", "faisalabad", "quetta", "sialkot", "gujranwala"
+        ]
+        city_found = None
+        for c in cities:
+            if re.search(r"\b" + re.escape(c) + r"\b", t_norm):
+                city_found = c.title()
+                break
+
+        if area_match and city_found:
+            area = area_match.group(0).upper()
+            return f"{area}, {city_found}"
+        if city_found:
+            return city_found
+        if area_match:
+            return area_match.group(0).upper()
+        return None
+
+    if location_missing:
+        fallback_loc = _extract_location_from_text(user_input)
+        if fallback_loc:
+            intent_data["location"] = fallback_loc
+            intent_data["clarification_needed"] = False
+            intent_data["clarification_question"] = None
         else:
-            question = "Which area or city are you in? For example, G-13 Islamabad or DHA Lahore."
-        intent_data["clarification_needed"] = True
-        intent_data["clarification_question"] = question
-        intent_data["location"] = None
+            if not intent_data.get("clarification_needed"):
+                lang = intent_data.get("language_detected", "mixed")
+                if lang == "urdu":
+                    question = "آپ کا علاقہ یا شہر کیا ہے؟ مثلاً G-13 اسلام آباد یا DHA لاہور"
+                elif lang == "roman_urdu":
+                    question = "Aap ka area ya city kia hai? Jaise G-13 Islamabad ya DHA Lahore."
+                else:
+                    question = "Which area or city are you in? For example, G-13 Islamabad or DHA Lahore."
+                intent_data["clarification_needed"] = True
+                intent_data["clarification_question"] = question
+                intent_data["location"] = None
 
     if service_missing and not intent_data.get("clarification_needed"):
         intent_data["clarification_needed"] = True
