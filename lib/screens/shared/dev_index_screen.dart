@@ -6,7 +6,6 @@ class DevIndexScreen extends StatelessWidget {
 
   final List<Map<String, String>> routes = const [
     {'name': 'Splash Screen', 'route': '/splash'},
-    {'name': 'Role Selection', 'route': '/role'},
     {'name': 'Trace Viewer', 'route': '/trace'},
     {'name': 'Login', 'route': '/login'},
     {'name': 'Signup', 'route': '/signup'},

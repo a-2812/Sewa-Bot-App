@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../models/role.dart';
+import '../../providers/role_state.dart';
 import '../../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -21,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _login() {
+  void _login() async {
     if (_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -29,7 +32,26 @@ class _LoginScreenState extends State<LoginScreen> {
           backgroundColor: AppTheme.success,
         ),
       );
-      Navigator.pushReplacementNamed(context, '/role');
+
+      final roleState = context.read<RoleState>();
+      // Try to load a previously saved role, if none exists determine from email or default to user
+      UserRole role = await roleState.loadSavedRole();
+      if (role == UserRole.none) {
+        if (_emailController.text.toLowerCase().contains('provider')) {
+          role = UserRole.provider;
+        } else {
+          role = UserRole.user;
+        }
+        await roleState.setRole(role);
+      }
+
+      if (mounted) {
+        if (role == UserRole.provider) {
+          Navigator.pushReplacementNamed(context, '/provider/home');
+        } else {
+          Navigator.pushReplacementNamed(context, '/user/home');
+        }
+      }
     }
   }
 

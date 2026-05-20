@@ -1,0 +1,56 @@
+{
+  "BK-A80F0E137B": {
+    "booking_id": "BK-A80F0E137B",
+    "status": "confirmed",
+    "provider": {
+      "id": "p017",
+      "name": "Rizwan Gul",
+      "service": "Electrician",
+      "phone": "+92-316-7890123",
+      "price_pkr": 1600,
+      "location": {
+        "area": "DHA Phase 1",
+        "city": "Lahore",
+        "lat": 31.4917,
+        "lng": 74.3996
+      }
+    },
+    "customer": {
+      "name": "Ali Raza",
+      "phone": "+92-300-1112233"
+    },
+    "service_type": "Electrician",
+    "time_slot": "2026-05-20T10:00:00",
+    "location": "House 7, Street 3, DHA Phase 1, Lahore",
+    "notes": "Main panel tripping, urgent fix needed",
+    "created_at": "2026-05-18T13:53:41.765097+00:00",
+    "updated_at": "2026-05-18T13:53:41.765097+00:00"
+  },
+  "BK-018E09CF09": {
+    "booking_id": "BK-018E09CF09",
+    "status": "confirmed",
+    "provider": {
+      "id": "p021",
+      "name": "Ahsan Farooq",
+      "service": "Math Tutor",
+      "phone": "+92-320-1234567",
+      "price_pkr": 2500,
+      "location": {
+        "area": "F-8 Markaz",
+        "city": "Islamabad",
+        "lat": 33.7076,
+        "lng": 73.0465
+      }
+    },
+    "customer": {
+      "name": "Zainab Sheikh",
+      "phone": "+92-311-5556677"
+    },
+    "service_type": "Math Tutor",
+    "time_slot": "2026-05-21T16:00:00",
+    "location": "Flat 4B, F-8 Markaz, Islamabad",
+    "notes": "O-Level Maths, Chapter 5 revision",
+    "created_at": "2026-05-18T13:53:41.807627+00:00",
+    "updated_at": "2026-05-18T13:53:41.807627+00:00"
+  }
+}

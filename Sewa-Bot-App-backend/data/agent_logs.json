@@ -1,0 +1,19 @@
+[
+  {
+    "agent": "Intent Agent",
+    "action": "Parsed user request",
+    "timestamp": "2025-11-19T10:30:00"
+  },
+  {
+    "agent": "Discovery Agent",
+    "action": "Found 5 providers",
+    "timestamp": "2025-11-19T10:30:05"
+  },
+  {
+    "timestamp": "2026-05-19T08:20:26.106287+00:00",
+    "agent": "Test Agent",
+    "agent_name": "Test Agent",
+    "action": "Started verification",
+    "reasoning": ""
+  }
+]

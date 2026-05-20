@@ -7,7 +7,6 @@ import 'package:avatar_glow/avatar_glow.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/app_state.dart';
 import '../../providers/voice_state.dart';
-import '../../providers/trace_state.dart';
 import '../../services/agent_service.dart';
 import '../../services/voice_service.dart';
 
@@ -45,7 +44,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           _textController.text = '${args['initialService']} needed';
         }
       }
-      if (!_isVoiceMode) _addBotMessage('Hello!\nWhat service do you need? You can tell me in English, Urdu, or Roman Urdu.');
+      if (!_isVoiceMode) {
+        _addBotMessage(
+            'Hello! 👋\nWhat service do you need? You can tell me in English, Urdu, or Roman Urdu.\n\nExample: "Mujhe kal subah G-13 mein AC technician chahiye"');
+      }
     });
   }
 
@@ -87,66 +89,108 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     setState(() => _isLoading = true);
     final appState = context.read<AppState>();
 
-    // Step 1: Extract Intent
+    // ── Step 1: extractIntent ────────────────────────────────
     _addBotMessage('🤖 Samajh raha hoon...');
-    final intentResult = await AgentService.extractIntent(text.trim());
+    final intentResult = await AgentService.extractIntent(
+      text.trim(),
+      sessionId: appState.sessionId,
+    );
 
-    if (intentResult.containsKey('error')) {
-      setState(() => _isLoading = false);
-      _addBotMessage('❌ Error: ${intentResult['error']}');
-      return;
-    }
-
-    final intent = intentResult['intent'] as Map<String, dynamic>?;
-    if (intent == null) {
-      setState(() => _isLoading = false);
-      _addBotMessage('❌ Intent samajhne mein masla hua.');
-      return;
-    }
-
-    if (intent['clarification_needed'] == true) {
-      setState(() => _isLoading = false);
-      _addBotMessage('🤔 ${intent['clarification_question'] ?? 'Thori aur detail de dein?'}');
-      return;
-    }
-
-    appState.setIntent(intentResult);
     setState(() {
-      _messages.removeLast(); // Remove "samajh raha hoon"
+      _messages.removeLast(); // remove "samajh raha hoon"
     });
 
-    // Show intent card
-    setState(() => _messages.add({
-      'text': '__INTENT_CARD__',
-      'isUser': false,
-      'time': DateTime.now(),
-      'data': intent,
-    }));
-    _scrollToBottom();
+    if (intentResult.containsKey('error') && !intentResult.containsKey('intent')) {
+      setState(() => _isLoading = false);
+      _addBotMessage(
+          '❌ Agents API se connect nahi ho saka.\n\n'
+          'Make sure the agents server is running:\n'
+          '  python main_api.py  (port 8001)\n\n'
+          'Error: ${intentResult['error']}');
+      return;
+    }
 
-    // Step 2: Get Providers
-    _addBotMessage('🔍 Best providers dhundh raha hoon...');
-    final providers = await AgentService.getProviders(intent);
-    appState.setProviders(providers);
+    // Update session_id if API returned a new one
+    final returnedSessionId = intentResult['session_id'] as String?;
+    if (returnedSessionId != null && returnedSessionId != appState.sessionId) {
+      appState.updateSessionId(returnedSessionId);
+    }
+
+    final activeSessionId = returnedSessionId ?? appState.sessionId;
+
+    // Append agent log from this step
+    final stepLog1 = intentResult['agent_log'] as List? ?? [];
+    appState.appendAgentLog(stepLog1);
+
+    // Handle clarification needed
+    final intent = intentResult['intent'] as Map<String, dynamic>?;
+    if (intent != null && intent['clarification_needed'] == true) {
+      final q = intent['clarification_question'] ?? 'Thori aur detail de dein?';
+      appState.setClarification(needed: true, question: q);
+      setState(() => _isLoading = false);
+      _addBotMessage('🤔 $q');
+      return;
+    }
+    appState.setClarification(needed: false);
+
+    if (intent != null) {
+      appState.setIntent(intent);
+      setState(() => _messages.add({
+            'text': '__INTENT_CARD__',
+            'isUser': false,
+            'time': DateTime.now(),
+            'data': intent,
+          }));
+      _scrollToBottom();
+    }
+
+    // Show fallback banner if demo mode triggered
+    if (intentResult['_fallback'] == true) {
+      _addBotMessage(
+          '⚠ Demo mode: API unreachable, showing sample data.\n'
+          '${intentResult['_fallback_reason'] ?? ''}');
+    }
+
+    // ── Step 2: getProviders ────────────────────────────────
+    _addBotMessage('🔍 Providers dhundh raha hoon...');
+
+    final provResult = await AgentService.getProviders(
+      activeSessionId,
+      intent ?? {},
+    );
 
     setState(() {
-      _messages.removeLast();
+      _messages.removeLast(); // remove "providers dhundh raha hoon"
       _isLoading = false;
     });
 
+    final stepLog2 = provResult['agent_log'] as List? ?? [];
+    appState.appendAgentLog(stepLog2);
+
+    final rawProviders = provResult['providers'] as List? ?? [];
+    final providers = rawProviders
+        .map((p) => Map<String, dynamic>.from(p as Map))
+        .toList();
+
+    appState.setProviders(providers);
+
     if (providers.isEmpty) {
-      _addBotMessage('😔 No provider found. Try another service.');
+      _addBotMessage(
+          '😔 Is area mein koi provider nahi mila.\n\n'
+          'Try karo: Islamabad, G-13, F-10, Lahore, DHA, Gulberg, etc.');
       return;
     }
 
-    _addBotMessage('✅ ${providers.length} providers mile! Top matches dekh lein:');
+    final demo = provResult['_fallback'] == true ? ' (demo)' : '';
+    _addBotMessage(
+        '✅ ${providers.length} provider${providers.length == 1 ? '' : 's'} mile$demo! Top matches dekh lein:');
 
-    // Navigate to providers
-    await Future.delayed(const Duration(milliseconds: 800));
+    await Future.delayed(const Duration(milliseconds: 600));
     if (mounted) {
-      Navigator.pushNamed(context, '/user/providers', arguments: intentResult);
+      Navigator.pushNamed(context, '/user/providers');
     }
   }
+
 
   // ─── Voice Methods ─────────────────────────────────────────
   Future<void> _toggleListening() async {
@@ -187,11 +231,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     voiceState.setStatus('AI is thinking...');
     _addUserMessage(text);
 
-    final result = await AgentService.extractIntent(text);
-    final intent = result['intent'] as Map<String, dynamic>?;
+    final result = await AgentService.chat(text, appState.sessionId);
 
-    if (intent != null && intent['clarification_needed'] == true) {
-      final question = intent['clarification_question'] ?? 'Thori detail dein?';
+    if (result.containsKey('error')) {
+      _addBotMessage('❌ ${result['error']}');
+      return;
+    }
+
+    final agentLog = result['agent_log'] as List? ?? [];
+    appState.setAgentLog(agentLog);
+
+    if (result['clarification_needed'] == true) {
+      final question = result['clarification_question'] ?? 'Thori detail dein?';
       voiceState.addToHistory(question, false);
       voiceState.setStatus('Sawal pooch raha hoon...');
       _addBotMessage('🤔 $question');
@@ -200,21 +251,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       return;
     }
 
-    appState.setIntent(result);
-    final spokenResponse = "${intent?['service_type'] ?? 'Service'} ki request mil gayi. Providers dhundh raha hoon.";
+    final intent = result['intent'] as Map<String, dynamic>?;
+    if (intent != null) appState.setIntent(intent);
+
+    final options = result['options'] as List? ?? [];
+    final providers = options.map((p) => Map<String, dynamic>.from(p as Map)).toList();
+    appState.setProviders(providers);
+
+    final spokenResponse =
+        "${intent?['service_type'] ?? 'Service'} ki request mil gayi. ${providers.length} providers mile.";
     voiceState.addToHistory(spokenResponse, false);
     _addBotMessage('✅ $spokenResponse');
     await VoiceService.speak(spokenResponse);
 
-    final providers = await AgentService.getProviders(intent ?? {});
-    appState.setProviders(providers);
-
-    if (mounted) {
-      context.read<TraceState>().startListening(appState.sessionId);
-    }
-
     await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) Navigator.pushNamed(context, '/user/providers', arguments: result);
+    if (mounted) Navigator.pushNamed(context, '/user/providers');
   }
 
   Future<bool> _requestMicPermission() async {
@@ -246,8 +297,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('SewaBot', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
-            Text('Request a service', style: TextStyle(color: Colors.white70, fontSize: 10)),
+            Text('SewaBot',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
+            Text('Request a service',
+                style: TextStyle(color: Colors.white70, fontSize: 10)),
           ],
         ),
         actions: [
@@ -332,14 +385,20 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           Row(children: [
             Icon(Icons.psychology, color: AppTheme.userPrimary, size: 18),
             const SizedBox(width: 8),
-            const Text('AI ne samjha:', style: TextStyle(color: AppTheme.userPrimaryLight, fontSize: 13, fontWeight: FontWeight.w500)),
+            const Text('AI ne samjha:',
+                style: TextStyle(
+                    color: AppTheme.userPrimaryLight,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500)),
           ]),
           const SizedBox(height: 10),
           _intentRow('Service', data['service_type'] ?? '—'),
           _intentRow('Location', data['location'] ?? '—'),
           _intentRow('Time', data['preferred_time'] ?? '—'),
           _intentRow('Urgency', data['urgency'] ?? '—'),
-          _intentRow('Confidence', '${((data['confidence_score'] ?? 0) * 100).toInt()}%'),
+          _intentRow('Confidence',
+              '${((data['confidence_score'] ?? 0) * 100).toInt()}%'),
+          _intentRow('Language', data['language_detected'] ?? '—'),
         ],
       ),
     );
@@ -350,8 +409,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
-          SizedBox(width: 90, child: Text(label, style: const TextStyle(color: AppTheme.textMuted, fontSize: 12))),
-          Expanded(child: Text(value, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 12))),
+          SizedBox(
+              width: 90,
+              child: Text(label,
+                  style: const TextStyle(color: AppTheme.textMuted, fontSize: 12))),
+          Expanded(
+              child: Text(value,
+                  style: const TextStyle(color: AppTheme.textPrimary, fontSize: 12))),
         ],
       ),
     );
@@ -370,7 +434,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               final val = ((_pulseController.value - delay) % 1.0).abs();
               return Container(
                 margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: 8, height: 8,
+                width: 8,
+                height: 8,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppTheme.userPrimary.withValues(alpha: 0.3 + val * 0.7),
@@ -403,8 +468,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                   hintStyle: TextStyle(color: AppTheme.textMuted),
                   filled: true,
                   fillColor: AppTheme.userSurface,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.mic, color: Colors.black),
                     onPressed: () => setState(() => _isVoiceMode = true),
@@ -417,8 +485,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             GestureDetector(
               onTap: () => _sendMessage(_textController.text),
               child: Container(
-                width: 44, height: 44,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: AppTheme.userPrimary),
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                    shape: BoxShape.circle, color: AppTheme.userPrimary),
                 child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
               ),
             ),
@@ -438,7 +508,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Background pulse
                   if (voiceState.isListening)
                     AnimatedBuilder(
                       animation: _pulseController,
@@ -448,47 +517,51 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                           height: 200 + (_pulseController.value * 60),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppTheme.userPrimary.withValues(alpha: 0.05 + _pulseController.value * 0.03),
+                            color: AppTheme.userPrimary
+                                .withValues(alpha: 0.05 + _pulseController.value * 0.03),
                           ),
                         );
                       },
                     ),
-
-                  // Sound level bars
                   if (voiceState.isListening)
                     Positioned(
                       bottom: 100,
-                      left: 0, right: 0,
+                      left: 0,
+                      right: 0,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(20, (i) {
-                          final h = (voiceState.soundLevel.abs() * _random.nextDouble() * 40).clamp(4.0, 60.0);
+                          final h = (voiceState.soundLevel.abs() *
+                                  _random.nextDouble() *
+                                  40)
+                              .clamp(4.0, 60.0);
                           return AnimatedContainer(
                             duration: const Duration(milliseconds: 80),
                             margin: const EdgeInsets.symmetric(horizontal: 1.5),
                             width: 3,
                             height: h,
                             decoration: BoxDecoration(
-                              color: AppTheme.userPrimary.withValues(alpha: (h / 60).clamp(0.3, 1.0)),
+                              color: AppTheme.userPrimary
+                                  .withValues(alpha: (h / 60).clamp(0.3, 1.0)),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           );
                         }),
                       ),
                     ),
-
-                  // Main content
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Status
                       Text(
-                        voiceState.statusMessage.isEmpty ? 'Start speaking...' : voiceState.statusMessage,
-                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14, fontStyle: FontStyle.italic),
+                        voiceState.statusMessage.isEmpty
+                            ? 'Start speaking...'
+                            : voiceState.statusMessage,
+                        style: const TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 14,
+                            fontStyle: FontStyle.italic),
                       ),
                       const SizedBox(height: 24),
-
-                      // Language pills
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -500,8 +573,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                         ],
                       ),
                       const SizedBox(height: 32),
-
-                      // Transcribed text
                       Container(
                         width: MediaQuery.of(context).size.width * 0.8,
                         padding: const EdgeInsets.all(16),
@@ -518,9 +589,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                                 : voiceState.transcribedText,
                             key: ValueKey(voiceState.transcribedText),
                             style: TextStyle(
-                              color: voiceState.transcribedText.isEmpty ? AppTheme.textMuted : AppTheme.textPrimary,
+                              color: voiceState.transcribedText.isEmpty
+                                  ? AppTheme.textMuted
+                                  : AppTheme.textPrimary,
                               fontSize: voiceState.transcribedText.isEmpty ? 14 : 16,
-                              fontStyle: voiceState.transcribedText.isEmpty ? FontStyle.italic : FontStyle.normal,
+                              fontStyle: voiceState.transcribedText.isEmpty
+                                  ? FontStyle.italic
+                                  : FontStyle.normal,
                               height: 1.6,
                             ),
                             textAlign: TextAlign.center,
@@ -528,27 +603,27 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                         ),
                       ),
                       const SizedBox(height: 40),
-
-                      // Mic button
                       GestureDetector(
                         onTap: _toggleListening,
                         child: _buildMicButton(voiceState),
                       ),
                       const SizedBox(height: 16),
-
-                      // Label
                       Text(
-                        voiceState.isListening ? 'Rokne ke liye dabao' :
-                        voiceState.isProcessing ? 'AI is thinking...' : 'Hold to speak',
+                        voiceState.isListening
+                            ? 'Rokne ke liye dabao'
+                            : voiceState.isProcessing
+                                ? 'AI is thinking...'
+                                : 'Hold to speak',
                         style: TextStyle(
-                          color: voiceState.isListening ? AppTheme.danger :
-                                 voiceState.isProcessing ? AppTheme.warning : AppTheme.textSecondary,
+                          color: voiceState.isListening
+                              ? AppTheme.danger
+                              : voiceState.isProcessing
+                                  ? AppTheme.warning
+                                  : AppTheme.textSecondary,
                           fontSize: 13,
                         ),
                       ),
                       const SizedBox(height: 32),
-
-                      // Mini history
                       SizedBox(
                         height: 100,
                         child: ListView.builder(
@@ -556,15 +631,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                           itemCount: voiceState.conversationHistory.length,
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           itemBuilder: (context, index) {
-                            final item = voiceState.conversationHistory[voiceState.conversationHistory.length - 1 - index];
+                            final item = voiceState.conversationHistory[
+                                voiceState.conversationHistory.length - 1 - index];
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 4),
-                              child: Text(
-                                item,
-                                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                              child: Text(item,
+                                  style: const TextStyle(
+                                      color: AppTheme.textSecondary, fontSize: 11),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
                             );
                           },
                         ),
@@ -574,8 +649,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 ],
               ),
             ),
-
-            // Bottom bar
             Container(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: SafeArea(
@@ -584,11 +657,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                   children: [
                     TextButton.icon(
                       onPressed: () => setState(() => _isVoiceMode = false),
-                      icon: const Icon(Icons.keyboard, color: AppTheme.textSecondary, size: 16),
-                      label: const Text('Switch to text', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                      icon: const Icon(Icons.keyboard,
+                          color: AppTheme.textSecondary, size: 16),
+                      label: const Text('Switch to text',
+                          style:
+                              TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
                     ),
                     const Spacer(),
-                    Text('Language: $_selectedLocale', style: const TextStyle(color: AppTheme.textMuted, fontSize: 11)),
+                    Text('Language: $_selectedLocale',
+                        style: const TextStyle(color: AppTheme.textMuted, fontSize: 11)),
                   ],
                 ),
               ),
@@ -600,18 +677,31 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildMicButton(VoiceState voiceState) {
-    final color = voiceState.isListening ? AppTheme.danger :
-                  voiceState.isProcessing ? AppTheme.warning : AppTheme.userPrimary;
+    final color = voiceState.isListening
+        ? AppTheme.danger
+        : voiceState.isProcessing
+            ? AppTheme.warning
+            : AppTheme.userPrimary;
     final child = Container(
-      width: 90, height: 90,
+      width: 90,
+      height: 90,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color,
-        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 2)],
+        boxShadow: [
+          BoxShadow(
+              color: color.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 2)
+        ],
       ),
       child: voiceState.isProcessing
-          ? const Padding(padding: EdgeInsets.all(25), child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-          : Icon(voiceState.isListening ? Icons.stop_rounded : Icons.mic_rounded, color: Colors.white, size: 40),
+          ? const Padding(
+              padding: EdgeInsets.all(25),
+              child:
+                  CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+          : Icon(
+              voiceState.isListening ? Icons.stop_rounded : Icons.mic_rounded,
+              color: Colors.white,
+              size: 40),
     );
 
     if (voiceState.isListening) {
@@ -630,7 +720,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     final selected = _selectedLocaleIndex == index;
     return GestureDetector(
       onTap: () {
-        setState(() { _selectedLocaleIndex = index; _selectedLocale = locale; });
+        setState(() {
+          _selectedLocaleIndex = index;
+          _selectedLocale = locale;
+        });
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -638,7 +731,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           color: selected ? AppTheme.userPrimary : AppTheme.userSurface,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Text(label, style: TextStyle(color: selected ? Colors.white : AppTheme.textSecondary, fontSize: 12)),
+        child: Text(label,
+            style: TextStyle(
+                color: selected ? Colors.white : AppTheme.textSecondary,
+                fontSize: 12)),
       ),
     );
   }

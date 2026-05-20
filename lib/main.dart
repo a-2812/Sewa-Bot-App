@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_core/firebase_core.dart';
+
 import 'package:provider/provider.dart';
 
 import 'theme/app_theme.dart';
@@ -12,7 +12,6 @@ import 'providers/provider_state.dart';
 
 // Shared screens
 import 'screens/shared/splash_screen.dart';
-import 'screens/shared/role_selection_screen.dart';
 import 'screens/shared/trace_screen.dart';
 import 'screens/shared/dev_index_screen.dart';
 import 'screens/shared/agent_flow_screen.dart';
@@ -56,12 +55,6 @@ void main() async {
     systemNavigationBarIconBrightness: Brightness.dark,
   ));
 
-  // Initialize Firebase (skip gracefully if not configured)
-  try {
-    await Firebase.initializeApp();
-  } catch (e) {
-    debugPrint('Firebase init skipped: $e');
-  }
 
   runApp(const KhidmatAIApp());
 }
@@ -91,7 +84,6 @@ class KhidmatAIApp extends StatelessWidget {
               '/dev-index': (context) => const DevIndexScreen(),
               '/agent-flow': (context) => AgentFlowScreen(),
               '/splash': (context) => const SplashScreen(),
-              '/role': (context) => const RoleSelectionScreen(),
               '/trace': (context) => const TraceViewerScreen(),
 
               // ─── Auth Routes ──────────────────────────

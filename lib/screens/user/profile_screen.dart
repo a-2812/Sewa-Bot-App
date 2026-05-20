@@ -56,7 +56,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final roleState = context.read<RoleState>();
     await roleState.clearRole();
     if (mounted) {
-      Navigator.pushNamedAndRemoveUntil(context, '/role', (_) => false);
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
     }
   }
 

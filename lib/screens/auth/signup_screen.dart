@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../models/role.dart';
+import '../../providers/role_state.dart';
 import '../../theme/app_theme.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -90,7 +93,7 @@ class _SignupScreenState extends State<SignupScreen> {
     });
   }
 
-  void _submit() {
+  void _submit() async {
     if (_formKey.currentState!.validate()) {
       if (_registerType == 'provider') {
         if (_certFileName == null) {
@@ -112,6 +115,12 @@ class _SignupScreenState extends State<SignupScreen> {
           return;
         }
       }
+
+      // Set user role based on registration type
+      final role = _registerType == 'provider' ? UserRole.provider : UserRole.user;
+      await context.read<RoleState>().setRole(role);
+
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

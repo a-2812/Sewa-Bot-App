@@ -104,7 +104,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
     final roleState = context.read<RoleState>();
     await roleState.clearRole();
     if (mounted) {
-      Navigator.pushNamedAndRemoveUntil(context, '/role', (_) => false);
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
     }
   }
 

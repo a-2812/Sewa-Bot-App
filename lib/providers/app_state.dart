@@ -19,6 +19,12 @@ class AppState extends ChangeNotifier {
   Map<String, dynamic>? _currentIntent;
   Map<String, dynamic>? get currentIntent => _currentIntent;
 
+  // ─── Clarification ─────────────────────────────────────────
+  bool _clarificationNeeded = false;
+  String? _clarificationQuestion;
+  bool get clarificationNeeded => _clarificationNeeded;
+  String? get clarificationQuestion => _clarificationQuestion;
+
   // ─── Providers ─────────────────────────────────────────────
   List<Map<String, dynamic>> _rankedProviders = [];
   List<Map<String, dynamic>> get rankedProviders => _rankedProviders;
@@ -34,8 +40,19 @@ class AppState extends ChangeNotifier {
   // ─── Booking ───────────────────────────────────────────────
   String? _bookingId;
   String? _currentTraceId;
+  Map<String, dynamic>? _currentBooking;
+  String? _bookingReceipt;
+  List<Map<String, dynamic>> _followups = [];
+
   String? get bookingId => _bookingId;
   String? get currentTraceId => _currentTraceId;
+  Map<String, dynamic>? get currentBooking => _currentBooking;
+  String? get bookingReceipt => _bookingReceipt;
+  List<Map<String, dynamic>> get followups => _followups;
+
+  // ─── Agent Log ─────────────────────────────────────────────
+  List<Map<String, dynamic>> _agentLog = [];
+  List<Map<String, dynamic>> get agentLog => _agentLog;
 
   // ─── Chat Messages ─────────────────────────────────────────
   List<Map<String, dynamic>> _messages = [];
@@ -71,6 +88,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setClarification({required bool needed, String? question}) {
+    _clarificationNeeded = needed;
+    _clarificationQuestion = question;
+    notifyListeners();
+  }
+
   void setProviders(List<Map<String, dynamic>> data) {
     _rankedProviders = data;
     notifyListeners();
@@ -89,6 +112,38 @@ class AppState extends ChangeNotifier {
   void setBooking(String id, String traceId) {
     _bookingId = id;
     _currentTraceId = traceId;
+    notifyListeners();
+  }
+
+  void setBookingResult({
+    required Map<String, dynamic> booking,
+    required String receipt,
+    required List<Map<String, dynamic>> followups,
+  }) {
+    _currentBooking = booking;
+    _bookingId = booking['booking_id'] as String?;
+    _bookingReceipt = receipt;
+    _followups = followups;
+    _currentTraceId = 'TR-${DateTime.now().millisecondsSinceEpoch}';
+    notifyListeners();
+  }
+
+  void setAgentLog(List<dynamic> log) {
+    _agentLog = log.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    notifyListeners();
+  }
+
+  /// Append additional steps (e.g. from a multi-step pipeline)
+  void appendAgentLog(List<dynamic> steps) {
+    for (final s in steps) {
+      _agentLog.add(Map<String, dynamic>.from(s as Map));
+    }
+    notifyListeners();
+  }
+
+  /// Update the session ID when the agents API returns a server-generated one
+  void updateSessionId(String id) {
+    _sessionId = id;
     notifyListeners();
   }
 
@@ -111,11 +166,17 @@ class AppState extends ChangeNotifier {
     _errorMessage = '';
     _sessionId = _generateUUID();
     _currentIntent = null;
+    _clarificationNeeded = false;
+    _clarificationQuestion = null;
     _rankedProviders = [];
     _selectedProvider = null;
     _currentQuote = null;
     _bookingId = null;
     _currentTraceId = null;
+    _currentBooking = null;
+    _bookingReceipt = null;
+    _followups = [];
+    _agentLog = [];
     _messages = [];
     notifyListeners();
   }

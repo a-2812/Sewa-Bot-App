@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/role_state.dart';
 import '../../theme/app_theme.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
@@ -85,7 +87,12 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       ),
     );
     
-    Navigator.pushReplacementNamed(context, '/role');
+    final roleState = context.read<RoleState>();
+    if (roleState.isProvider) {
+      Navigator.pushReplacementNamed(context, '/provider/home');
+    } else {
+      Navigator.pushReplacementNamed(context, '/user/home');
+    }
   }
 
   @override
